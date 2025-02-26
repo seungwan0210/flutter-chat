@@ -15,16 +15,25 @@ class _HomePageState extends State<HomePage> {
   String selectedBoardFilter = "전체";
   String selectedRatingFilter = "전체";
   String homeShopSearch = "";
+  static const int MAX_RATING = 30; // ✅ `static const`로 변경
 
   Map<String, dynamic>? currentUserData;
   late Stream<DocumentSnapshot> profileStatsStream;
+
+  List<String> ratingOptions = ["전체"]; // ✅ Firestore가 아닌 직접 생성
+
 
   @override
   void initState() {
     super.initState();
     _listenToCurrentUser();
     profileStatsStream = _getProfileStatsStream();
+
+    // ✅ `setState()` 없이 직접 초기화
+    ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
   }
+
+
 
   /// ✅ Firestore에서 로그인한 사용자 정보 실시간 감지
   void _listenToCurrentUser() {
@@ -41,6 +50,7 @@ class _HomePageState extends State<HomePage> {
       }
     });
   }
+
 
   /// ✅ Firestore에서 프로필 통계 실시간 가져오기
   Stream<DocumentSnapshot> _getProfileStatsStream() {
@@ -234,7 +244,7 @@ class _HomePageState extends State<HomePage> {
                     Expanded(
                       child: _dropdownFilter(
                         selectedRatingFilter,
-                        ["전체", "1", "2", "3", "4", "5"],
+                        ratingOptions, // ✅ Firestore에서 불러온 게 아니라, 전체 레이팅 목록 사용
                             (newValue) => setState(() => selectedRatingFilter = newValue!),
                       ),
                     ),
@@ -296,9 +306,9 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem("총 검색량", "${stats["totalViews"] ?? 0}"),
-              _buildStatItem("오늘 검색량", "${stats["todayViews"] ?? 0}"),
-              _buildStatItem("친구 수", "${stats["friendCount"] ?? 0}"),
+              _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
+              _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
+              _buildStatItem("Friend", "${stats["friendCount"] ?? 0}"),
             ],
           ),
         );
@@ -339,15 +349,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-/// ✅ **드롭다운 필터 UI 추가**
+/// ✅ **드롭다운 필터 UI 수정 (Firestore 데이터 반영)**
 Widget _dropdownFilter(String selectedValue, List<String> items, ValueChanged<String?> onChanged) {
   return DropdownButtonFormField<String>(
     value: selectedValue,
     onChanged: onChanged,
-    items: items.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+    items: items.isNotEmpty
+        ? items.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList()
+        : [const DropdownMenuItem(value: "전체", child: Text("전체"))], // ✅ 데이터 없을 때 기본값 설정
     decoration: InputDecoration(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     ),
   );
 }
+
