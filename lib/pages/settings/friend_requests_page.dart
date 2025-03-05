@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class FriendRequestsPage extends StatefulWidget {
-  const FriendRequestsPage({Key? key}) : super(key: key);
+  const FriendRequestsPage({super.key});
 
   @override
   _FriendRequestsPageState createState() => _FriendRequestsPageState();
@@ -21,18 +21,17 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
   /// ✅ Firestore에서 친구 요청 목록 실시간 감지
   void _loadFriendRequests() {
     _firestoreService.listenToFriendRequests().listen((requests) {
-      setState(() {
-        _friendRequests = requests;
-      });
+      if (mounted) {
+        setState(() {
+          _friendRequests = requests;
+        });
+      }
     });
   }
 
-  /// ✅ 친구 요청 승인 (리스트에서 즉시 제거)
-  Future<void> _acceptFriend(String? userId) async {
-    if (userId == null || userId.isEmpty) {
-      print("🚨 오류: userId가 null입니다.");
-      return;
-    }
+  /// ✅ 친구 요청 승인 (Firestore 업데이트 & 즉시 UI 반영)
+  Future<void> _acceptFriend(String userId) async {
+    if (userId.isEmpty) return;
 
     setState(() {
       _friendRequests.removeWhere((request) => request["userId"] == userId);
@@ -40,17 +39,16 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
 
     await _firestoreService.acceptFriendRequest(userId);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("친구 요청을 승인했습니다.")),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("친구 요청을 승인했습니다.")),
+      );
+    }
   }
 
-  /// ✅ 친구 요청 거절 (리스트에서 즉시 제거)
-  Future<void> _declineFriend(String? userId) async {
-    if (userId == null || userId.isEmpty) {
-      print("🚨 오류: userId가 null입니다.");
-      return;
-    }
+  /// ✅ 친구 요청 거절 (Firestore 업데이트 & 즉시 UI 반영)
+  Future<void> _declineFriend(String userId) async {
+    if (userId.isEmpty) return;
 
     setState(() {
       _friendRequests.removeWhere((request) => request["userId"] == userId);
@@ -58,9 +56,11 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
 
     await _firestoreService.declineFriendRequest(userId);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("친구 요청을 거절했습니다.")),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("친구 요청을 거절했습니다.")),
+      );
+    }
   }
 
   @override
@@ -73,7 +73,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         itemCount: _friendRequests.length,
         itemBuilder: (context, index) {
           final request = _friendRequests[index];
-          final String userId = request["userId"] ?? ""; // ✅ null 방지
+          final String userId = request["userId"] ?? "";
           final String nickname = request["nickname"] ?? "알 수 없는 사용자";
           final String profileImage = request["profileImage"] ?? "";
 

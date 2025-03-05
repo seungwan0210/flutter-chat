@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class FriendManagementPage extends StatefulWidget {
-  const FriendManagementPage({Key? key}) : super(key: key);
+  const FriendManagementPage({super.key});
 
   @override
   _FriendManagementPageState createState() => _FriendManagementPageState();
@@ -11,22 +11,19 @@ class FriendManagementPage extends StatefulWidget {
 class _FriendManagementPageState extends State<FriendManagementPage> {
   final FirestoreService _firestoreService = FirestoreService();
 
-  /// ✅ Firestore에서 친구 목록을 불러오기 (한 번만 가져옴)
-  Future<List<Map<String, dynamic>>> getFriends() async {
-    return await _firestoreService.getFriends();
-  }
-
-  /// ✅ Firestore에서 친구 목록을 실시간 감지 (`snapshots()`)
+  /// ✅ Firestore에서 친구 목록을 실시간 가져오기
   Stream<List<Map<String, dynamic>>> listenToFriends() {
     return _firestoreService.listenToFriends();
   }
 
-  /// ✅ 친구 삭제 (Firestore에서 해당 친구 문서 삭제)
+  /// ✅ 친구 삭제 기능
   Future<void> removeFriend(String userId) async {
     await _firestoreService.removeFriend(userId);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("친구가 삭제되었습니다.")),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("친구가 삭제되었습니다.")),
+      );
+    }
   }
 
   @override
@@ -36,10 +33,6 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: listenToFriends(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("친구 목록이 없습니다."));
           }
@@ -52,10 +45,10 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
               final friend = friends[index];
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundImage: friend["profileImage"] != null && friend["profileImage"].isNotEmpty
+                  backgroundImage: (friend["profileImage"] ?? "").isNotEmpty
                       ? NetworkImage(friend["profileImage"])
                       : null,
-                  child: friend["profileImage"] == null || friend["profileImage"].isEmpty
+                  child: (friend["profileImage"] ?? "").isEmpty
                       ? const Icon(Icons.person)
                       : null,
                 ),

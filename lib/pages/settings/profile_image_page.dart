@@ -5,7 +5,7 @@ import '../../services/firestore_service.dart';
 import 'dart:io';
 
 class ProfileImagePage extends StatefulWidget {
-  const ProfileImagePage({Key? key}) : super(key: key);
+  const ProfileImagePage({super.key});
 
   @override
   _ProfileImagePageState createState() => _ProfileImagePageState();
@@ -17,10 +17,10 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
   File? _image;
   bool _isUploading = false;
 
-  /// ✅ 이미지 선택 (갤러리)
+  /// ✅ 갤러리에서 이미지 선택
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
+    if (pickedFile != null && mounted) {
       setState(() {
         _image = File(pickedFile.path);
       });
@@ -50,7 +50,9 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
     String? imageUrl = await _uploadImage(_image!);
     if (imageUrl != null) {
       await _firestoreService.updateUserData({"profileImage": imageUrl});
-      Navigator.pop(context, imageUrl); // ✅ 변경된 이미지 URL 반환
+      if (mounted) {
+        Navigator.pop(context, imageUrl); // ✅ 변경된 이미지 URL 반환
+      }
     }
 
     setState(() => _isUploading = false);

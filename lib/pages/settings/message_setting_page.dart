@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class MessageSettingPage extends StatefulWidget {
-  const MessageSettingPage({Key? key}) : super(key: key);
+  const MessageSettingPage({super.key});
 
   @override
   _MessageSettingPageState createState() => _MessageSettingPageState();
@@ -21,7 +21,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
     _loadMessageSetting();
   }
 
-  /// Firestore에서 현재 유저의 메시지 설정 가져오기
+  /// ✅ Firestore에서 현재 유저의 메시지 설정 가져오기
   Future<void> _loadMessageSetting() async {
     Map<String, dynamic>? userData = await _firestoreService.getUserData();
     if (userData != null && mounted) {
@@ -31,7 +31,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
     }
   }
 
-  /// Firestore에 메시지 수신 설정 업데이트
+  /// ✅ Firestore에 메시지 수신 설정 업데이트
   Future<void> _saveMessageSetting() async {
     setState(() => _isSaving = true);
 
@@ -45,7 +45,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
         const SnackBar(content: Text("메시지 수신 설정이 변경되었습니다.")),
       );
 
-      Navigator.pop(context); // ✅ 이전 페이지로 돌아가기
+      Navigator.pop(context); // ✅ 변경 후 이전 페이지로 돌아가기
     }
   }
 
@@ -67,11 +67,10 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
         ],
       ),
       body: StreamBuilder<Map<String, dynamic>?>(
-        stream: _firestoreService.listenToUserData(), // ✅ 실시간 업데이트 적용!
+        stream: _firestoreService.listenToUserData(), // ✅ 실시간 데이터 감지
         builder: (context, snapshot) {
           if (snapshot.hasData) {
-            _selectedMessageSetting =
-                snapshot.data?["messageReceiveSetting"] ?? "모든 사람";
+            _selectedMessageSetting = snapshot.data?["messageReceiveSetting"] ?? "모든 사람";
           }
 
           return ListView.builder(

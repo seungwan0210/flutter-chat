@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class HomeShopPage extends StatefulWidget {
-  const HomeShopPage({Key? key}) : super(key: key);
+  const HomeShopPage({super.key});
 
   @override
   _HomeShopPageState createState() => _HomeShopPageState();
@@ -19,22 +19,22 @@ class _HomeShopPageState extends State<HomeShopPage> {
     _loadHomeShop();
   }
 
-  /// Firestore에서 현재 홈샵 정보 가져오기
+  /// ✅ Firestore에서 현재 사용자의 홈샵 정보 가져오기
   Future<void> _loadHomeShop() async {
     Map<String, dynamic>? userData = await _firestoreService.getUserData();
-    if (userData != null) {
+    if (userData != null && mounted) {
       setState(() {
         _homeShopController.text = userData["homeShop"] ?? "";
       });
     }
   }
 
-  /// 홈샵 유효성 검사 (2~30자 제한)
+  /// ✅ 홈샵 유효성 검사 (2~30자 제한)
   bool _isValidHomeShop(String homeShop) {
     return homeShop.length >= 2 && homeShop.length <= 30;
   }
 
-  /// 홈샵 저장 기능
+  /// ✅ 홈샵 저장 기능
   Future<void> _saveHomeShop() async {
     String newHomeShop = _homeShopController.text.trim();
 
@@ -56,11 +56,12 @@ class _HomeShopPageState extends State<HomeShopPage> {
 
     await _firestoreService.updateUserData({"homeShop": newHomeShop});
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("홈샵이 변경되었습니다.")),
-    );
-
-    Navigator.pop(context, newHomeShop); // ✅ 변경된 홈샵을 반환하여 업데이트 유도
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("홈샵이 변경되었습니다.")),
+      );
+      Navigator.pop(context, newHomeShop); // ✅ 변경된 홈샵을 반환하여 업데이트
+    }
   }
 
   @override
@@ -105,5 +106,3 @@ class _HomeShopPageState extends State<HomeShopPage> {
     );
   }
 }
-
-

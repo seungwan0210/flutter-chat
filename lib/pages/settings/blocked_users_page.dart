@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class BlockedUsersPage extends StatefulWidget {
-  const BlockedUsersPage({Key? key}) : super(key: key);
+  const BlockedUsersPage({super.key});
 
   @override
   _BlockedUsersPageState createState() => _BlockedUsersPageState();
@@ -24,12 +24,8 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
     return Scaffold(
       appBar: AppBar(title: const Text("차단 관리")),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _firestoreService.listenToBlockedUsers(), // ✅ 실시간 데이터 반영
+        stream: _firestoreService.listenToBlockedUsers(), // ✅ 실시간 반영
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("차단된 사용자가 없습니다."));
           }
@@ -42,10 +38,10 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
               final user = blockedUsers[index];
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundImage: user["profileImage"] != null && user["profileImage"].isNotEmpty
+                  backgroundImage: (user["profileImage"] ?? "").isNotEmpty
                       ? NetworkImage(user["profileImage"])
                       : null,
-                  child: user["profileImage"] == null || user["profileImage"].isEmpty
+                  child: (user["profileImage"] ?? "").isEmpty
                       ? const Icon(Icons.person)
                       : null,
                 ),

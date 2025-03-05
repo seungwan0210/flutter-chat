@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 
 class NicknameEditPage extends StatefulWidget {
-  const NicknameEditPage({Key? key}) : super(key: key);
+  const NicknameEditPage({super.key});
 
   @override
   _NicknameEditPageState createState() => _NicknameEditPageState();
@@ -19,20 +19,20 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     _loadNickname();
   }
 
-  /// Firestore에서 현재 닉네임 가져오기
+  /// ✅ Firestore에서 현재 닉네임 가져오기
   Future<void> _loadNickname() async {
     Map<String, dynamic>? userData = await _firestoreService.getUserData();
-    if (userData != null) {
+    if (userData != null && mounted) {
       setState(() {
         _nicknameController.text = userData["nickname"] ?? "";
       });
     }
   }
 
-  /// 닉네임 유효성 검사 (부적절한 단어 & 특수문자 제한)
+  /// ✅ 닉네임 유효성 검사 (부적절한 단어 & 특수문자 제한)
   bool _isValidNickname(String nickname) {
     final invalidChars = RegExp(r"[^a-zA-Z0-9가-힣_]"); // 한글, 영문, 숫자, 밑줄(_) 허용
-    final bannedWords = ["admin", "운영자", "관리자", "fuck", "shit", "욕설"]; // 예제
+    final bannedWords = ["admin", "운영자", "관리자", "fuck", "shit", "욕설"]; // 금지어 예제
 
     if (nickname.length < 2 || nickname.length > 12) return false; // 글자 수 제한
     if (invalidChars.hasMatch(nickname)) return false; // 특수문자 포함 여부
@@ -41,12 +41,12 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     return true;
   }
 
-  /// Firestore에서 닉네임 중복 체크
+  /// ✅ Firestore에서 닉네임 중복 체크
   Future<bool> _isNicknameAvailable(String nickname) async {
     return await _firestoreService.isNicknameUnique(nickname);
   }
 
-  /// 닉네임 저장 기능
+  /// ✅ 닉네임 저장 기능
   Future<void> _saveNickname() async {
     String newNickname = _nicknameController.text.trim();
 
@@ -81,7 +81,9 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
       const SnackBar(content: Text("닉네임이 변경되었습니다.")),
     );
 
-    Navigator.pop(context, newNickname); // ✅ 변경된 닉네임을 반환하여 업데이트 유도
+    if (mounted) {
+      Navigator.pop(context, newNickname); // ✅ 변경된 닉네임을 반환하여 업데이트 유도
+    }
   }
 
   @override
