@@ -13,13 +13,12 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// ✅ Firestore에서 현재 사용자의 채팅 목록 가져오기
+  /// ✅ Firestore에서 사용자가 참여한 모든 채팅방 가져오기
   Stream<QuerySnapshot> _getChatRooms() {
-    String currentUserId = _auth.currentUser!.uid;
-
     return FirebaseFirestore.instance
         .collection("chats")
-        .where("participants", arrayContains: currentUserId)
+        .where("participants", arrayContains: _auth.currentUser!.uid)
+        .orderBy("timestamp", descending: true)
         .snapshots();
   }
 
@@ -35,42 +34,47 @@ class _ChatListPageState extends State<ChatListPage> {
           var chatRooms = snapshot.data!.docs;
 
           if (chatRooms.isEmpty) {
-            return const Center(child: Text("참여한 채팅이 없습니다."));
+            return const Center(child: Text("채팅방이 없습니다."));
           }
 
           return ListView.builder(
             itemCount: chatRooms.length,
             itemBuilder: (context, index) {
               var chatRoom = chatRooms[index];
-              var participants = List<String>.from(chatRoom["participants"]);
+              List participants = chatRoom["participants"];
+              String lastMessage = chatRoom["lastMessage"] ?? "대화를 시작하세요!";
+              Timestamp timestamp = chatRoom["timestamp"];
+              DateTime time = timestamp.toDate();
 
-              // 상대방 ID 찾기
-              String otherUserId = participants.firstWhere((id) => id != _auth.currentUser!.uid);
+              // 상대방 ID 찾기 (내 ID 제외)
+              String otherUserId = participants.firstWhere(
+                    (id) => id != _auth.currentUser!.uid,
+                orElse: () => "",
+              );
 
               return FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance.collection("users").doc(otherUserId).get(),
                 builder: (context, userSnapshot) {
                   if (!userSnapshot.hasData) return const SizedBox();
 
-                  var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                  String nickname = userData["nickname"] ?? "알 수 없음";
-                  String profileImage = userData["profileImage"] ?? "";
+                  var userData = userSnapshot.data!;
+                  String otherUserName = userData["nickname"] ?? "알 수 없음";
 
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: profileImage.isNotEmpty
-                          ? NetworkImage(profileImage)
-                          : const AssetImage("assets/default_profile.png") as ImageProvider,
+                      backgroundColor: Colors.blueAccent,
+                      child: Text(otherUserName[0]), // 첫 글자 표시
                     ),
-                    title: Text(nickname),
-                    subtitle: Text("최근 메시지: ${chatRoom["lastMessage"] ?? "메시지 없음"}"),
+                    title: Text(otherUserName),
+                    subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: Text("${time.hour}:${time.minute}"), // 시간 표시
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatPage(
                             receiverId: otherUserId,
-                            receiverName: nickname,
+                            receiverName: otherUserName,
                           ),
                         ),
                       );

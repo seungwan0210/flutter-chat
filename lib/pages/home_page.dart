@@ -33,6 +33,32 @@ class _HomePageState extends State<HomePage> {
     ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
   }
 
+  /// ✅ 총 조회수(`totalViews`)를 기반으로 배지 반환
+  Map<String, String> getUserBadge(int totalViews) {
+    if (totalViews >= 100000) {
+      return {"badgeName": "레전드", "badgeImage": "assets/badges/legend.png"};
+    } else if (totalViews >= 50000) {
+      return {"badgeName": "마스터", "badgeImage": "assets/badges/master.png"};
+    } else if (totalViews >= 30000) {
+      return {"badgeName": "다이아몬드", "badgeImage": "assets/badges/diamond.png"};
+    } else if (totalViews >= 20000) {
+      return {"badgeName": "플래티넘", "badgeImage": "assets/badges/platinum.png"};
+    } else if (totalViews >= 10000) {
+      return {"badgeName": "골드 2", "badgeImage": "assets/badges/gold2.png"};
+    } else if (totalViews >= 5000) {
+      return {"badgeName": "골드 1", "badgeImage": "assets/badges/gold1.png"};
+    } else if (totalViews >= 3000) {
+      return {"badgeName": "실버 2", "badgeImage": "assets/badges/silver2.png"};
+    } else if (totalViews >= 1000) {
+      return {"badgeName": "실버 1", "badgeImage": "assets/badges/silver1.png"};
+    } else if (totalViews >= 500) {
+      return {"badgeName": "브론즈 2", "badgeImage": "assets/badges/bronze2.png"};
+    } else if (totalViews >= 100) {
+      return {"badgeName": "브론즈 1", "badgeImage": "assets/badges/bronze1.png"};
+    } else {
+      return {"badgeName": "입문", "badgeImage": "assets/badges/skull.png"}; // 최하위 배지
+    }
+  }
 
 
   /// ✅ Firestore에서 로그인한 사용자 정보 실시간 감지
@@ -220,6 +246,7 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
 
   /// ✅ **필터 & 검색 UI (카드 제거, 간격 조정)**
   Widget _buildFilterAndSearch() {

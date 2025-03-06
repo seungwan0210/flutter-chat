@@ -91,6 +91,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       return;
     }
 
+
     DocumentReference profileRef = FirebaseFirestore.instance.collection("users").doc(viewedUserId);
     DocumentReference viewRef = profileRef.collection("profile_views").doc(currentUserId);
 
@@ -190,6 +191,14 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
+
+  /// ✅ 같은 유저끼리는 항상 같은 채팅방 ID 생성
+  String _getChatRoomId(String user1, String user2) {
+    List<String> ids = [user1, user2];
+    ids.sort(); // 항상 같은 순서로 정렬
+    return ids.join("_"); // "user1_user2" 형태로 ID 생성
+  }
+
   /// ✅ 내 프로필 vs 상대방 프로필 버튼 다르게 표시
   Widget _buildActionButtons() {
     if (widget.isCurrentUser) {
@@ -220,12 +229,45 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       return Column(
         children: [
           ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              String senderId = _auth.currentUser!.uid;
+              String receiverId = widget.userId;
+
+              // ✅ Firestore에서 기존 채팅방 찾기
+              QuerySnapshot chatRoomQuery = await FirebaseFirestore.instance
+                  .collection("chats")
+                  .where("participants", arrayContains: senderId)
+                  .get();
+
+              String chatRoomId;
+              DocumentReference? existingChatRoom;
+
+              // ✅ 기존 채팅방이 있는지 확인
+              for (var doc in chatRoomQuery.docs) {
+                List participants = doc["participants"];
+                if (participants.contains(receiverId)) {
+                  existingChatRoom = doc.reference;
+                  break;
+                }
+              }
+
+              if (existingChatRoom != null) {
+                chatRoomId = existingChatRoom.id; // ✅ 기존 채팅방 사용
+              } else {
+                // ✅ 기존 채팅방이 없으면 새로 생성
+                chatRoomId = _getChatRoomId(senderId, receiverId);
+                await FirebaseFirestore.instance.collection("chats").doc(chatRoomId).set({
+                  "participants": [senderId, receiverId],
+                  "lastMessage": "",
+                  "timestamp": Timestamp.now(),
+                });
+              }
+              // ✅ ChatPage로 이동 (기존 채팅방 ID 유지)
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => ChatPage(
-                    receiverId: widget.userId,
+                    receiverId: receiverId,
                     receiverName: widget.nickname,
                   ),
                 ),
