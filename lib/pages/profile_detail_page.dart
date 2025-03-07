@@ -57,7 +57,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
   /// ✅ 하루가 지나면 `todayViews`를 0으로 리셋
   Future<void> _resetTodayViewsIfNeeded(String userId) async {
-    DocumentReference userRef = FirebaseFirestore.instance.collection("users").doc(userId);
+    DocumentReference userRef = FirebaseFirestore.instance.collection("users")
+        .doc(userId);
     DocumentSnapshot userSnapshot = await userRef.get();
 
     if (userSnapshot.exists) {
@@ -67,7 +68,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
       if (lastResetAt != null) {
         DateTime lastResetDate = lastResetAt.toDate();
-        String lastResetStr = "${lastResetDate.year}-${lastResetDate.month}-${lastResetDate.day}";
+        String lastResetStr = "${lastResetDate.year}-${lastResetDate
+            .month}-${lastResetDate.day}";
 
         if (lastResetStr == todayStr) {
           print("✅ 오늘 이미 초기화됨");
@@ -83,6 +85,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       print("🔥 새로운 하루 시작! todayViews = 0으로 초기화됨.");
     }
   }
+
   /// ✅ 프로필 조회 시 조회수 증가 (중복 조회 방지)
   Future<void> _increaseProfileView(String viewedUserId) async {
     String currentUserId = _auth.currentUser!.uid;
@@ -92,8 +95,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
 
 
-    DocumentReference profileRef = FirebaseFirestore.instance.collection("users").doc(viewedUserId);
-    DocumentReference viewRef = profileRef.collection("profile_views").doc(currentUserId);
+    DocumentReference profileRef = FirebaseFirestore.instance.collection(
+        "users").doc(viewedUserId);
+    DocumentReference viewRef = profileRef.collection("profile_views").doc(
+        currentUserId);
 
     DocumentSnapshot viewSnapshot = await viewRef.get();
     DateTime today = DateTime.now();
@@ -102,7 +107,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     if (viewSnapshot.exists) {
       Timestamp lastViewedAt = viewSnapshot["viewedAt"];
       DateTime lastViewedDate = lastViewedAt.toDate();
-      String lastViewedStr = "${lastViewedDate.year}-${lastViewedDate.month}-${lastViewedDate.day}";
+      String lastViewedStr = "${lastViewedDate.year}-${lastViewedDate
+          .month}-${lastViewedDate.day}";
 
       if (lastViewedStr == todayStr) {
         print("✅ 오늘 이미 방문한 사용자, 카운트 X");
@@ -123,7 +129,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
   /// ✅ 유저 정보 불러오기
   void _loadUserInfo() async {
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(widget.userId).get();
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection(
+        "users").doc(widget.userId).get();
     if (userDoc.exists) {
       Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
       setState(() {
@@ -180,7 +187,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           child: Column(
             children: [
               _buildInfoRow(Icons.store, "홈샵", _homeShop),
-              _buildInfoRow(Icons.star, "레이팅", _rating > 0 ? "$_rating" : "미등록"),
+              _buildInfoRow(
+                  Icons.star, "레이팅", _rating > 0 ? "$_rating" : "미등록"),
               _buildInfoRow(Icons.sports_esports, "다트 보드", _dartBoard),
               const SizedBox(height: 20),
               _buildActionButtons(), // ✅ 여기에 버튼 추가!
@@ -207,7 +215,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         children: [
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (context) => const ProfilePage()));
             },
             icon: const Icon(Icons.settings),
             label: const Text("프로필 설정"),
@@ -216,7 +225,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           const SizedBox(height: 10),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaySummaryPage()));
+              Navigator.push(context, MaterialPageRoute(
+                  builder: (context) => const PlaySummaryPage()));
             },
             icon: const Icon(Icons.timeline),
             label: const Text("오늘의 플레이 요약"),
@@ -256,7 +266,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               } else {
                 // ✅ 기존 채팅방이 없으면 새로 생성
                 chatRoomId = _getChatRoomId(senderId, receiverId);
-                await FirebaseFirestore.instance.collection("chats").doc(chatRoomId).set({
+                await FirebaseFirestore.instance.collection("chats").doc(
+                    chatRoomId).set({
                   "participants": [senderId, receiverId],
                   "lastMessage": "",
                   "timestamp": Timestamp.now(),
@@ -266,10 +277,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ChatPage(
-                    receiverId: receiverId,
-                    receiverName: widget.nickname,
-                  ),
+                  builder: (context) =>
+                      ChatPage(
+                        receiverId: receiverId,
+                        receiverName: widget.nickname,
+                      ),
                 ),
               );
             },
@@ -303,7 +315,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     return ListTile(
       leading: Icon(icon, color: Colors.blueAccent),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      trailing: Text(value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
     );
   }
 
@@ -312,19 +325,14 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     return Column(
       children: [
         GestureDetector(
-          onTap: () {
-            if (widget.isCurrentUser) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PlaySummaryPage()),
-              );
-            }
-          },
+          onTap: () => _showFullScreenImage(widget.profileImage),
+          // ✅ 이미지 확대 보기 추가
           child: CircleAvatar(
             radius: 70,
             backgroundImage: widget.profileImage.isNotEmpty
                 ? NetworkImage(widget.profileImage)
-                : const AssetImage("assets/default_profile.png") as ImageProvider,
+                : const AssetImage(
+                "assets/default_profile.png") as ImageProvider,
             child: widget.profileImage.isEmpty
                 ? const Icon(Icons.person, size: 70, color: Colors.white)
                 : null,
@@ -333,9 +341,40 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         const SizedBox(height: 15),
         Text(
           widget.nickname,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          style: const TextStyle(
+              fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ],
+    );
+  }
+
+  /// ✅ **풀스크린 이미지 확대 다이얼로그**
+  void _showFullScreenImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Center(
+                child: imageUrl.isNotEmpty
+                    ? Image.network(imageUrl, fit: BoxFit.contain)
+                    : Image.asset(
+                    "assets/default_profile.png", fit: BoxFit.contain),
+              ),
+              Positioned(
+                top: 20,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

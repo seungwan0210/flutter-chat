@@ -27,7 +27,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _profileImageUrl = "";
   String _dartBoard = "다트라이브";
   int _rating = 1;
-  String _messageSetting = "전체 허용";
+  String _messageSetting = "전체 허용"; // ✅ Firestore 실시간 감지
   bool _isLoading = true;
 
   @override
@@ -81,24 +81,42 @@ class _ProfilePageState extends State<ProfilePage> {
         elevation: 2, // ✅ 더 깔끔한 그림자 효과
         iconTheme: const IconThemeData(color: Color(0xFF1A237E)), // ✅ 아이콘 다크 블루
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _buildProfileImage(),
-            const SizedBox(height: 20), // ✅ 이미지와 정보 간격 줄이기
-            _buildProfileInfo(),
-            const SizedBox(height: 30), // ✅ 더 넓은 간격으로 조정
-            _buildSettingsIcons(),
-            const SizedBox(height: 20), // ✅ 마지막 하단 여백 추가
-          ],
-        ),
+      body: StreamBuilder<Map<String, dynamic>?>(
+        stream: _firestoreService.listenToUserData(), // ✅ Firestore 실시간 감지
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator()); // ✅ 로딩 중 UI
+          }
+
+          if (snapshot.hasData) {
+            // ✅ Firestore의 최신 데이터 반영
+            _nickname = snapshot.data?["nickname"] ?? "닉네임 없음";
+            _homeShop = snapshot.data?["homeShop"] ?? "설정 안됨";
+            _profileImageUrl = snapshot.data?["profileImage"] ?? "";
+            _dartBoard = snapshot.data?["dartBoard"] ?? "다트라이브";
+            _rating = snapshot.data?["rating"] ?? 1;
+            _messageSetting = snapshot.data?["messageReceiveSetting"] ?? "전체 허용";
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildProfileImage(),
+                const SizedBox(height: 20), // ✅ 이미지와 정보 간격 줄이기
+                _buildProfileInfo(),
+                const SizedBox(height: 30), // ✅ 더 넓은 간격으로 조정
+                _buildSettingsIcons(),
+                const SizedBox(height: 20), // ✅ 마지막 하단 여백 추가
+              ],
+            ),
+          );
+        },
       ),
     );
   }
+
 
 
   /// ✅ **프로필 이미지 변경**
@@ -170,7 +188,6 @@ class _ProfilePageState extends State<ProfilePage> {
   /// ✅ **프로필 정보 섹션 (수정된 버전)**
   Widget _buildProfileInfo() {
     return Column(
-
       children: [
         _buildEditableField("닉네임", _nickname, Icons.person, () async {
           String? updatedNickname = await Navigator.push(
@@ -212,13 +229,16 @@ class _ProfilePageState extends State<ProfilePage> {
             await _firestoreService.updateUserData({"rating": _rating});
           }
         }),
-        _buildEditableField("메시지 설정", "전체 허용", Icons.message, () async {
+        _buildEditableField("메시지 설정", _messageSetting, Icons.message, () async {
           String? updatedMessageSetting = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const MessageSettingPage()),
           );
           if (updatedMessageSetting != null) {
-            setState(() {}); // ✅ 메시지 설정 업데이트
+            setState(() {
+              _messageSetting = updatedMessageSetting;
+            });
+            await _firestoreService.updateUserData({"messageReceiveSetting": _messageSetting});
           }
         }),
       ],

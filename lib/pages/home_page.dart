@@ -22,6 +22,9 @@ class _HomePageState extends State<HomePage> {
 
   List<String> ratingOptions = ["전체"]; // ✅ Firestore가 아닌 직접 생성
 
+  // ✅ 추가: 메시지 설정 기본값 설정
+  String _messageSetting = "ALL";
+
 
   @override
   void initState() {
@@ -31,33 +34,6 @@ class _HomePageState extends State<HomePage> {
 
     // ✅ `setState()` 없이 직접 초기화
     ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
-  }
-
-  /// ✅ 총 조회수(`totalViews`)를 기반으로 배지 반환
-  Map<String, String> getUserBadge(int totalViews) {
-    if (totalViews >= 100000) {
-      return {"badgeName": "레전드", "badgeImage": "assets/badges/legend.png"};
-    } else if (totalViews >= 50000) {
-      return {"badgeName": "마스터", "badgeImage": "assets/badges/master.png"};
-    } else if (totalViews >= 30000) {
-      return {"badgeName": "다이아몬드", "badgeImage": "assets/badges/diamond.png"};
-    } else if (totalViews >= 20000) {
-      return {"badgeName": "플래티넘", "badgeImage": "assets/badges/platinum.png"};
-    } else if (totalViews >= 10000) {
-      return {"badgeName": "골드 2", "badgeImage": "assets/badges/gold2.png"};
-    } else if (totalViews >= 5000) {
-      return {"badgeName": "골드 1", "badgeImage": "assets/badges/gold1.png"};
-    } else if (totalViews >= 3000) {
-      return {"badgeName": "실버 2", "badgeImage": "assets/badges/silver2.png"};
-    } else if (totalViews >= 1000) {
-      return {"badgeName": "실버 1", "badgeImage": "assets/badges/silver1.png"};
-    } else if (totalViews >= 500) {
-      return {"badgeName": "브론즈 2", "badgeImage": "assets/badges/bronze2.png"};
-    } else if (totalViews >= 100) {
-      return {"badgeName": "브론즈 1", "badgeImage": "assets/badges/bronze1.png"};
-    } else {
-      return {"badgeName": "입문", "badgeImage": "assets/badges/skull.png"}; // 최하위 배지
-    }
   }
 
 
@@ -72,10 +48,13 @@ class _HomePageState extends State<HomePage> {
       if (userDoc.exists) {
         setState(() {
           currentUserData = userDoc.data() as Map<String, dynamic>;
+          // ✅ Firestore에서 메시지 설정 가져와 업데이트
+          _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
         });
       }
     });
   }
+
 
 
   /// ✅ Firestore에서 프로필 통계 실시간 가져오기
@@ -141,18 +120,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// ✅ **내 프로필 UI (온/오프라인 아이콘 추가, 카드 제거)**
   Widget _buildMyProfile() {
     if (currentUserData == null) return const Center(child: CircularProgressIndicator());
 
     bool isOnline = currentUserData!["status"] == "online";
-
-    // ✅ 닉네임 필드 확인 후 기본값 설정
-    String nickname = currentUserData!.containsKey("nickname") && currentUserData!["nickname"] != null
-        ? currentUserData!["nickname"]
-        : "닉네임 없음";
-
-    print("🔥 내 정보 - 닉네임 확인: $nickname"); // ✅ 로그 추가
+    String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
+    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용"; // ✅ Firestore 값 기준으로 설정
 
     return GestureDetector(
       onTap: () {
@@ -161,7 +134,7 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(
             builder: (context) => ProfileDetailPage(
               userId: auth.currentUser!.uid,
-              nickname: nickname, // ✅ 여기서 nickname 사용
+              nickname: nickname,
               profileImage: currentUserData!["profileImage"] ?? "",
               isCurrentUser: true,
             ),
@@ -169,7 +142,7 @@ class _HomePageState extends State<HomePage> {
         );
       },
       child: Container(
-        color: Colors.white, // ✅ 배경색 화이트 적용
+        color: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
@@ -178,8 +151,10 @@ class _HomePageState extends State<HomePage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nickname, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), // ✅ 닉네임 표시
-                _buildProfileDetails(currentUserData!),
+                Text(nickname, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}"),
+                Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!["rating"] ?? 0}"),
+                Text("메시지 설정: $messageSetting", style: const TextStyle(fontSize: 14, color: Colors.black54)), // ✅ 중복 제거 후 정확한 값 표시
               ],
             ),
           ],
@@ -187,6 +162,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
 
 
 
@@ -218,29 +194,35 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// ✅ **유저 개별 UI 추가**
   Widget _buildUserTile(QueryDocumentSnapshot user) {
     String currentUserId = auth.currentUser!.uid;
     bool isOnline = user["status"] == "online";
+    String messageSetting = user.data().toString().contains("messageReceiveSetting")
+        ? user["messageReceiveSetting"] ?? "전체 허용"
+        : "전체 허용"; // ✅ 필드가 없을 경우 기본값 설정
 
     return ListTile(
       leading: _buildProfileImage(user["profileImage"], isOnline),
       title: Text(user["nickname"] ?? "알 수 없음",
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      subtitle: _buildProfileDetails(user.data() as Map<String, dynamic>),
-      // ✅ 정상 작동
-
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("홈샵: ${user["homeShop"] ?? "없음"}"),
+          Text("${user["dartBoard"] ?? "없음"} | 레이팅: ${user["rating"] ?? 0}"),
+          Text("메시지 설정: $messageSetting", style: const TextStyle(fontSize: 14, color: Colors.black54)), // ✅ 필드가 없을 경우 기본값 표시
+        ],
+      ),
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                ProfileDetailPage(
-                  userId: user.id,
-                  nickname: user["nickname"] ?? "알 수 없음",
-                  profileImage: user["profileImage"] ?? "",
-                  isCurrentUser: user.id == currentUserId,
-                ),
+            builder: (context) => ProfileDetailPage(
+              userId: user.id,
+              nickname: user["nickname"] ?? "알 수 없음",
+              profileImage: user["profileImage"] ?? "",
+              isCurrentUser: user.id == currentUserId,
+            ),
           ),
         );
       },

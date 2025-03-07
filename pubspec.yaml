@@ -39,6 +39,7 @@ dependencies:
   firebase_storage: ^12.4.2
   firebase_messaging: ^15.2.2
   google_fonts: ^6.1.0  # ✅ 최신 Google Fonts 버전 추가
+  url_launcher: ^6.1.14  # 최신 버전 확인 가능
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -63,6 +64,9 @@ flutter:
   assets:
     - assets/logo.jpg
     - assets/default_profile.png
+    - assets/bulls_fighter.webp
+    - assets/dartslive.webp
+    - assets/phoenix.webp
 
 
   # The following line ensures that the Material Icons font is

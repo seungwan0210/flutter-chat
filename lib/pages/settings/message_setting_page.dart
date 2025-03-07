@@ -12,6 +12,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
   final FirestoreService _firestoreService = FirestoreService();
   String _selectedMessageSetting = "모든 사람"; // 기본값
   bool _isSaving = false;
+  bool _isLoaded = false; // ✅ Firestore 데이터가 로드되었는지 체크
 
   final List<String> _messageSettings = ["모든 사람", "친구만", "메시지 차단"];
 
@@ -27,6 +28,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
     if (userData != null && mounted) {
       setState(() {
         _selectedMessageSetting = userData["messageReceiveSetting"] ?? "모든 사람";
+        _isLoaded = true; // ✅ 데이터 로드 완료
       });
     }
   }
@@ -44,8 +46,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("메시지 수신 설정이 변경되었습니다.")),
       );
-
-      Navigator.pop(context); // ✅ 변경 후 이전 페이지로 돌아가기
+      Navigator.pop(context, _selectedMessageSetting); // ✅ 변경된 값을 반환하며 이전 페이지로 돌아가기
     }
   }
 
@@ -66,29 +67,22 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
           ),
         ],
       ),
-      body: StreamBuilder<Map<String, dynamic>?>(
-        stream: _firestoreService.listenToUserData(), // ✅ 실시간 데이터 감지
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            _selectedMessageSetting = snapshot.data?["messageReceiveSetting"] ?? "모든 사람";
-          }
-
-          return ListView.builder(
-            itemCount: _messageSettings.length,
-            itemBuilder: (context, index) {
-              String setting = _messageSettings[index];
-              return RadioListTile<String>(
-                title: Text(setting),
-                value: setting,
-                groupValue: _selectedMessageSetting,
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedMessageSetting = value;
-                    });
-                  }
-                },
-              );
+      body: !_isLoaded
+          ? const Center(child: CircularProgressIndicator()) // ✅ Firestore 데이터 로딩 중
+          : ListView.builder(
+        itemCount: _messageSettings.length,
+        itemBuilder: (context, index) {
+          String setting = _messageSettings[index];
+          return RadioListTile<String>(
+            title: Text(setting),
+            value: setting,
+            groupValue: _selectedMessageSetting, // ✅ Firestore 값과 동기화된 값 사용
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _selectedMessageSetting = value;
+                });
+              }
             },
           );
         },

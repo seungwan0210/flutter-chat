@@ -64,6 +64,41 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
+  /// ✅ 친구 삭제
+  Future<void> _removeFriend() async {
+    String currentUserId = _auth.currentUser!.uid;
+
+    try {
+      // 현재 유저의 친구 목록에서 제거
+      await _firestore.collection("users").doc(currentUserId).collection("friends").doc(widget.receiverId).delete();
+      // 상대 유저의 친구 목록에서 현재 유저 제거
+      await _firestore.collection("users").doc(widget.receiverId).collection("friends").doc(currentUserId).delete();
+
+      Navigator.pop(context); // ✅ 삭제 후 이전 화면으로 이동
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
+    } catch (e) {
+      print("❌ 친구 삭제 실패: $e");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+    }
+  }
+
+  /// ✅ 친구 차단
+  Future<void> _blockFriend() async {
+    String currentUserId = _auth.currentUser!.uid;
+
+    try {
+      await _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(widget.receiverId).set({
+        "blockedAt": FieldValue.serverTimestamp(),
+      });
+
+      Navigator.pop(context); // ✅ 차단 후 이전 화면으로 이동
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 차단되었습니다.")));
+    } catch (e) {
+      print("❌ 친구 차단 실패: $e");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,20 +156,10 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
 
             const SizedBox(height: 30),
 
-            // ✅ 채팅 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _startChat,
-                icon: const Icon(Icons.chat),
-                label: const Text("채팅하기"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
+            // ✅ 버튼 3개 (메시지 / 친구 삭제 / 차단)
+            _buildActionButton(Icons.chat, "메시지 보내기", Colors.blueAccent, _startChat),
+            _buildActionButton(Icons.person_remove, "친구 삭제", Colors.redAccent, _removeFriend),
+            _buildActionButton(Icons.block, "차단하기", Colors.grey, _blockFriend),
           ],
         ),
       ),
@@ -153,6 +178,26 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           const Spacer(),
           Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ],
+      ),
+    );
+  }
+
+  /// ✅ 버튼 UI
+  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          label: Text(label),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
       ),
     );
   }
