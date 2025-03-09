@@ -273,15 +273,18 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                   "timestamp": Timestamp.now(),
                 });
               }
+
               // ✅ ChatPage로 이동 (기존 채팅방 ID 유지)
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      ChatPage(
-                        receiverId: receiverId,
-                        receiverName: widget.nickname,
-                      ),
+                  builder: (context) => ChatPage(
+                    chatRoomId: chatRoomId, // ✅ chatRoomId 추가
+                    chatPartnerName: widget.nickname, // ✅ receiverName → chatPartnerName 변경
+                    chatPartnerImage: widget.profileImage ?? "", // ✅ 상대방 프로필 이미지 추가
+                    receiverId: receiverId,
+                    receiverName: widget.nickname,
+                  ),
                 ),
               );
             },

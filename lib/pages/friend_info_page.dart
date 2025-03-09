@@ -6,8 +6,9 @@ import 'chat_page.dart';
 class FriendInfoPage extends StatefulWidget {
   final String receiverId;
   final String receiverName;
+  final String receiverImage; // ✅ 추가됨
 
-  const FriendInfoPage({super.key, required this.receiverId, required this.receiverName});
+  const FriendInfoPage({super.key, required this.receiverId, required this.receiverImage, required this.receiverName});
 
   @override
   _FriendInfoPageState createState() => _FriendInfoPageState();
@@ -53,16 +54,29 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
 
   /// ✅ 채팅 페이지로 이동
   void _startChat() {
+    String chatRoomId = _getChatRoomId(FirebaseAuth.instance.currentUser!.uid, widget.receiverId);
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ChatPage(
+          chatRoomId: chatRoomId, // ✅ chatRoomId 추가
+          chatPartnerName: widget.receiverName, // ✅ receiverName을 chatPartnerName으로 변경
+          chatPartnerImage: widget.receiverImage ?? "", // ✅ 상대방 프로필 이미지 추가 (필요하면 위젯에서 받아오기)
           receiverId: widget.receiverId,
           receiverName: widget.receiverName,
         ),
       ),
     );
   }
+
+  /// ✅ 채팅방 ID 생성 함수 (채팅방이 없으면 새로 생성 가능)
+  String _getChatRoomId(String userId, String receiverId) {
+    return userId.hashCode <= receiverId.hashCode
+        ? '$userId\_$receiverId'
+        : '$receiverId\_$userId';
+  }
+
 
   /// ✅ 친구 삭제
   Future<void> _removeFriend() async {

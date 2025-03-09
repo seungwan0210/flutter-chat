@@ -81,7 +81,12 @@ class _FriendsPageState extends State<FriendsPage> {
                         Text("메시지 설정: $messageSetting", style: const TextStyle(fontSize: 14, color: Colors.black54)),
                       ],
                     ),
-                    onTap: () => _showFriendProfile(context, friendId, nickname,),
+                    onTap: () => _showFriendProfile(
+                      context,
+                      friendId,
+                      nickname,
+                      friendData["profileImage"] ?? "", // ✅ 프로필 이미지 추가
+                    ),
                   );
                 },
               );
@@ -155,17 +160,19 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   /// ✅ 친구 프로필 페이지로 이동
-  void _showFriendProfile(BuildContext context, String friendId, String friendName) {
+  void _showFriendProfile(BuildContext context, String friendId, String friendName, String friendImage) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FriendInfoPage(
           receiverId: friendId,  // ✅ FriendInfoPage에서 요구하는 ID
           receiverName: friendName,  // ✅ FriendInfoPage에서 요구하는 이름
+          receiverImage: friendImage,  // ✅ 추가된 프로필 이미지
         ),
       ),
     );
   }
+
 
 
 
