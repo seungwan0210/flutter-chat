@@ -118,10 +118,13 @@ class _ChatListPageState extends State<ChatListPage> {
                           child: ListTile(
                             contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                             leading: CircleAvatar(
-                              backgroundImage: profileImage.isNotEmpty ? NetworkImage(profileImage) : null,
+                              backgroundImage: (profileImage.isNotEmpty)
+                                  ? NetworkImage(profileImage)  // ✅ 프로필 이미지가 있는 경우
+                                  : AssetImage("assets/default_profile.png") as ImageProvider, // ✅ 기본 이미지 적용
                               backgroundColor: Colors.blueAccent,
                               child: profileImage.isEmpty ? Text(otherUserName[0], style: TextStyle(color: Colors.white)) : null,
                             ),
+
                             title: Text(
                               otherUserName,
                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),

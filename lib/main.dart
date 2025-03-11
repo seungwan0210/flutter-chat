@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Firestore 추가
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/date_symbol_data_local.dart'; // ✅ intl 초기화를 위해 추가
 import 'pages/login_page.dart';
 import 'pages/main_page.dart';
 import 'firebase_options.dart';
@@ -11,6 +12,8 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initializeDateFormatting('ko_KR', null); // ✅ 한국어 로컬 데이터 초기화
+  print("✅ intl 초기화 완료: ko_KR"); // ✅ 디버깅용 로그 추가
 
   runApp(const DartChatApp());
 }
@@ -43,12 +46,12 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _setUserOnline(); // 🔥 FIXED: 앱 시작 시 **온라인으로 변경**
+    _setUserOnline(); // 앱 시작 시 온라인 상태로 설정
   }
 
   @override
   void dispose() {
-    _setUserOffline(); // 🔥 FIXED: 앱이 완전히 종료될 때 **오프라인으로 변경**
+    _setUserOffline();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -56,9 +59,9 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      _setUserOffline(); // 🔥 FIXED: 앱이 백그라운드로 가거나 종료되면 **오프라인으로 변경**
+      _setUserOffline();
     } else if (state == AppLifecycleState.resumed) {
-      _setUserOnline(); // 🔥 FIXED: 앱이 다시 열리면 **온라인으로 변경**
+      _setUserOnline();
     }
   }
 
@@ -79,7 +82,6 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "status": "online",
           "createdAt": FieldValue.serverTimestamp(),
         });
-
         print("✅ Firestore에 사용자 문서가 없어서 새로 생성함.");
       } else {
         print("✅ Firestore에 사용자 문서가 이미 존재함.");
@@ -120,17 +122,16 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
 
         final user = snapshot.data;
         if (user == null) {
-          return const LoginPage(); // ✅ 로그인되지 않으면 로그인 페이지로 이동
+          return const LoginPage();
         }
 
-        // ✅ Firestore 사용자 문서 확인 후 **MainPage로 이동**
         return FutureBuilder(
           future: _checkAndCreateUserData(user),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            return const MainPage(); // ✅ 로그인 후 **MainPage**로 이동
+            return const MainPage();
           },
         );
       },
