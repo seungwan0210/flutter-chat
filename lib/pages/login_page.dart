@@ -29,9 +29,41 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _validateInputs() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
     setState(() {
-      _isLoginEnabled = _emailController.text.isNotEmpty && _passwordController.text.isNotEmpty;
+      _isLoginEnabled = email.contains('@') && password.isNotEmpty && password.length >= 6;
     });
+  }
+
+  Future<void> _updateUserStatus(String uid, String status) async {
+    await _firestore.collection("users").doc(uid).update({"status": status});
+  }
+
+  Future<void> _createUserData(User user) async {
+    await _firestore.collection("users").doc(user.uid).set({
+      "uid": user.uid,
+      "email": user.email,
+      "nickname": "새 유저",
+      "profileImage": "https://via.placeholder.com/150", // ✅ 기본 이미지
+      "dartBoard": "다트라이브",
+      "messageSetting": "all",
+      "status": "online",
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+  }
+
+  String _getErrorMessage(String code) {
+    switch (code) {
+      case "user-not-found":
+        return "이메일이 존재하지 않습니다.";
+      case "wrong-password":
+        return "비밀번호가 올바르지 않습니다.";
+      case "invalid-email":
+        return "이메일 형식이 올바르지 않습니다.";
+      default:
+        return "로그인 실패: $code";
+    }
   }
 
   Future<void> _login() async {
@@ -48,47 +80,21 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       String uid = userCredential.user!.uid;
-
       DocumentSnapshot userDoc = await _firestore.collection("users").doc(uid).get();
 
       if (userDoc.exists) {
-        await _firestore.collection("users").doc(uid).update({"status": "online"});
+        await _updateUserStatus(uid, "online");
       } else {
-        await _firestore.collection("users").doc(uid).set({
-          "uid": uid,
-          "email": userCredential.user!.email,
-          "nickname": "새 유저",
-          "profileImage": "",
-          "dartBoard": "다트라이브",
-          "messageSetting": "all",
-          "status": "online",
-          "createdAt": FieldValue.serverTimestamp(),
-        });
+        await _createUserData(userCredential.user!);
       }
 
-      // ✅ 로그인 후 'MainPage'로 이동 (프로필 탭 선택)
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 3)),
       );
     } on FirebaseAuthException catch (authError) {
-      String errorMessage;
-      switch (authError.code) {
-        case "user-not-found":
-          errorMessage = "이메일이 존재하지 않습니다.";
-          break;
-        case "wrong-password":
-          errorMessage = "비밀번호가 올바르지 않습니다.";
-          break;
-        case "invalid-email":
-          errorMessage = "이메일 형식이 올바르지 않습니다.";
-          break;
-        default:
-          errorMessage = "로그인 실패: ${authError.message}";
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
+        SnackBar(content: Text(_getErrorMessage(authError.code))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } finally {
       setState(() {
-        _isLoading = false;
+        _isLoading = false; // ✅ 오타 수정
       });
     }
   }
@@ -104,7 +110,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // ✅ 배경 화이트
+      backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: Center(
           child: Padding(
@@ -130,44 +136,34 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-
-                // ✅ 이메일 입력 필드
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: "이메일",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.email, color: Colors.blueAccent),
                     filled: true,
                     fillColor: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // ✅ 비밀번호 입력 필드
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: "비밀번호",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
                     filled: true,
                     fillColor: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // ✅ 로그인 버튼
                 _isLoading
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
-                  onPressed: _isLoginEnabled ? _login : null, // 🔹 입력이 없으면 버튼 비활성화
+                  onPressed: _isLoginEnabled ? _login : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isLoginEnabled ? Colors.blueAccent : Colors.grey,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
@@ -181,8 +177,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // ✅ 회원가입 버튼
                 TextButton(
                   onPressed: () {
                     Navigator.push(

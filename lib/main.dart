@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/date_symbol_data_local.dart'; // ✅ intl 초기화를 위해 추가
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:logger/logger.dart';
 import 'pages/login_page.dart';
 import 'pages/main_page.dart';
 import 'firebase_options.dart';
@@ -12,8 +13,8 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await initializeDateFormatting('ko_KR', null); // ✅ 한국어 로컬 데이터 초기화
-  print("✅ intl 초기화 완료: ko_KR"); // ✅ 디버깅용 로그 추가
+  await initializeDateFormatting('ko_KR', null);
+  Logger().i("✅ intl 초기화 완료: ko_KR");
 
   runApp(const DartChatApp());
 }
@@ -27,9 +28,94 @@ class DartChatApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Darts Circle',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.black),
+          bodyMedium: TextStyle(color: Colors.black54),
+          titleLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber[700],
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.black,
+          selectedItemColor: Colors.amber[700],
+          unselectedItemColor: Colors.white,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
+          showUnselectedLabels: false,
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
+        dividerColor: Colors.grey[300],
+        cardColor: Colors.white,
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber).copyWith(
+          brightness: Brightness.light, // 명시적 밝기 설정
+          primary: Colors.amber[700],
+          secondary: Colors.black,
+          error: Colors.red,
+          onPrimary: Colors.white,
+        ),
       ),
-      home: const AuthCheck(),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.grey[900],
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.grey[800],
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white70),
+          titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber[600],
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.grey[800],
+          selectedItemColor: Colors.amber[600],
+          unselectedItemColor: Colors.white70,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
+          showUnselectedLabels: false,
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        dividerColor: Colors.grey[700],
+        cardColor: Colors.grey[800],
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber).copyWith(
+          brightness: Brightness.dark, // 명시적 다크 모드 밝기 설정
+          primary: Colors.amber[600],
+          secondary: Colors.grey[800],
+          error: Colors.redAccent,
+          onPrimary: Colors.white,
+        ),
+      ),
+      themeMode: ThemeMode.system,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const AuthCheck(),
+        '/login': (context) => const LoginPage(),
+        '/main': (context) => const MainPage(),
+      },
     );
   }
 }
@@ -42,11 +128,13 @@ class AuthCheck extends StatefulWidget {
 }
 
 class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
+  final Logger _logger = Logger();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _setUserOnline(); // 앱 시작 시 온라인 상태로 설정
+    _setUserOnline();
   }
 
   @override
@@ -65,7 +153,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     }
   }
 
-  /// ✅ Firestore에서 사용자 문서가 존재하는지 확인하고, 없으면 생성
+  /// Firestore에서 사용자 문서가 존재하는지 확인하고, 없으면 생성
   Future<void> _checkAndCreateUserData(User user) async {
     try {
       final docRef = FirebaseFirestore.instance.collection("users").doc(user.uid);
@@ -81,33 +169,48 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "messageSetting": "all",
           "status": "online",
           "createdAt": FieldValue.serverTimestamp(),
+          "rating": 0,
+          "friendCount": 0,
         });
-        print("✅ Firestore에 사용자 문서가 없어서 새로 생성함.");
+        _logger.i("✅ Firestore에 사용자 문서가 없어서 새로 생성함.");
       } else {
-        print("✅ Firestore에 사용자 문서가 이미 존재함.");
+        _logger.i("✅ Firestore에 사용자 문서가 이미 존재함.");
       }
     } catch (e) {
-      print("❌ Firestore 사용자 문서 확인 중 오류 발생: $e");
+      _logger.e("❌ Firestore 사용자 문서 확인 중 오류 발생: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("사용자 데이터 확인 중 오류 발생: $e")),
+      );
     }
   }
 
-  /// ✅ 사용자 상태를 온라인으로 설정
+  /// 사용자 상태를 온라인으로 설정
   void _setUserOnline() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
-        "status": "online",
-      });
+      try {
+        await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
+          "status": "online",
+        });
+        _logger.i("✅ 사용자 상태를 온라인으로 설정함: ${user.uid}");
+      } catch (e) {
+        _logger.e("❌ 온라인 상태 업데이트 실패: $e");
+      }
     }
   }
 
-  /// ✅ 사용자 상태를 오프라인으로 설정
+  /// 사용자 상태를 오프라인으로 설정
   void _setUserOffline() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
-        "status": "offline",
-      });
+      try {
+        await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
+          "status": "offline",
+        });
+        _logger.i("✅ 사용자 상태를 오프라인으로 설정함: ${user.uid}");
+      } catch (e) {
+        _logger.e("❌ 오프라인 상태 업데이트 실패: $e");
+      }
     }
   }
 
@@ -117,7 +220,21 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Darts Circle 로딩 중...",
+                    style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
+                  ),
+                ],
+              ),
+            ),
+          );
         }
 
         final user = snapshot.data;
@@ -129,7 +246,21 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           future: _checkAndCreateUserData(user),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Darts Circle 로딩 중...",
+                        style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
             return const MainPage();
           },

@@ -1,46 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:dartschat/pages/login_page.dart';
-import 'package:dartschat/services/firestore_service.dart';
+import 'package:dartschat/pages/login_page.dart'; // LoginPage 임포트 추가
+import '../../services/firestore_service.dart';
 
-class LogoutDialog extends StatelessWidget {
-  final FirestoreService firestoreService = FirestoreService(); // ✅ Firestore 서비스
+class LogoutDialog extends StatefulWidget {
+  final FirestoreService firestoreService;
+
+  const LogoutDialog({super.key, required this.firestoreService});
+
+  @override
+  _LogoutDialogState createState() => _LogoutDialogState();
+}
+
+class _LogoutDialogState extends State<LogoutDialog> {
+  bool _isLoggingOut = false;
+
+  Future<void> _handleLogout(BuildContext context) async {
+    setState(() => _isLoggingOut = true);
+
+    try {
+      await widget.firestoreService.updateUserLogout();
+      await FirebaseAuth.instance.signOut();
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+              (route) => false,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("로그아웃 중 오류가 발생했습니다: $e")),
+        );
+      }
+    } finally {
+      if (context.mounted) {
+        setState(() => _isLoggingOut = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("로그아웃"),
-      content: const Text("정말 로그아웃 하시겠습니까?"),
+      title: Text(
+        "로그아웃",
+        style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color),
+      ),
+      content: _isLoggingOut
+          ? const Center(child: CircularProgressIndicator())
+          : Text(
+        "정말 로그아웃 하시겠습니까?",
+        style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+      ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(), // ✅ 다이얼로그 닫기
-          child: const Text("취소"),
+          onPressed: _isLoggingOut ? null : () => Navigator.of(context).pop(),
+          child: Text(
+            "취소",
+            style: TextStyle(color: Theme.of(context).colorScheme.secondary),
+          ),
         ),
         TextButton(
-          onPressed: () async {
-            await _handleLogout(context);
-          },
-          child: const Text("확인"),
+          onPressed: _isLoggingOut ? null : () => _handleLogout(context),
+          child: Text(
+            "확인",
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
+          ),
         ),
       ],
     );
-  }
-
-  /// ✅ 로그아웃 처리
-  Future<void> _handleLogout(BuildContext context) async {
-    // Firestore에 로그아웃 상태 업데이트
-    await firestoreService.updateUserLogout();
-
-    // Firebase 인증 로그아웃 처리
-    await FirebaseAuth.instance.signOut();
-
-    // 로그인 페이지로 이동 (이전 모든 페이지 스택 삭제)
-    if (context.mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-            (route) => false,
-      );
-    }
   }
 }

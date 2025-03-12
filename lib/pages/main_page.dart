@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'friends_page.dart';
 import 'chat_list_page.dart';
 import 'profile_page.dart';
-import 'friends_page.dart';
 import 'more_page.dart';
 
 class MainPage extends StatefulWidget {
-  final int initialIndex; // ✅ 처음 로딩될 탭을 설정할 수 있도록 추가
+  final int initialIndex;
 
-  const MainPage({super.key, this.initialIndex = 0}); // ✅ 기본값을 HomePage(전체)로 설정
+  const MainPage({super.key, this.initialIndex = 0});
 
   @override
   _MainPageState createState() => _MainPageState();
@@ -17,19 +17,18 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   late int _selectedIndex;
 
-  // ✅ 각 페이지를 미리 생성하여 페이지 유지 (네비게이션 바 사라짐 방지)
   final List<Widget> _pages = [
     const HomePage(),
     const FriendsPage(),
     const ChatListPage(),
-    const ProfilePage(), // ✅ ProfilePage 인스턴스 유지
+    const ProfilePage(),
     const MorePage(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex; // ✅ 초기 선택된 탭 설정
+    _selectedIndex = widget.initialIndex;
   }
 
   void _onItemTapped(int index) {
@@ -41,27 +40,30 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex], // ✅ 선택된 페이지 표시
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
       bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
         decoration: BoxDecoration(
-          color: Colors.white, // ✅ 배경 화이트
-          border: const Border(
-            top: BorderSide(color: Colors.blueAccent, width: 2), // ✅ 상단 테두리 강조 (네온 블루)
+          color: Theme.of(context).bottomNavigationBarTheme.backgroundColor ?? Colors.black,
+          border: Border(
+            top: BorderSide(color: Theme.of(context).dividerColor ?? Colors.grey.shade300, width: 2),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1), // ✅ 그림자 효과 추가
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 8,
               offset: const Offset(0, -2),
             ),
           ],
         ),
         child: BottomNavigationBar(
-          backgroundColor: Colors.white, // ✅ 네비게이션 바 배경 색상
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          selectedItemColor: Colors.blueAccent, // ✅ 네온 블루 포인트 컬러
-          unselectedItemColor: Colors.grey[500], // ✅ 미선택 시 연한 회색
+          selectedItemColor: Theme.of(context).bottomNavigationBarTheme.selectedItemColor ?? Colors.amber[700],
+          unselectedItemColor: Theme.of(context).bottomNavigationBarTheme.unselectedItemColor ?? Colors.white,
           type: BottomNavigationBarType.fixed,
           showSelectedLabels: true,
           showUnselectedLabels: false,

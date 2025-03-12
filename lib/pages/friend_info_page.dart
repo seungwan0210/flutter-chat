@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_page.dart';
+import '../../services/firestore_service.dart';
 
 class FriendInfoPage extends StatefulWidget {
   final String receiverId;
   final String receiverName;
-  final String receiverImage; // ✅ 추가됨
+  final String receiverImage;
 
   const FriendInfoPage({super.key, required this.receiverId, required this.receiverImage, required this.receiverName});
 
@@ -17,17 +18,19 @@ class FriendInfoPage extends StatefulWidget {
 class _FriendInfoPageState extends State<FriendInfoPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirestoreService _firestoreService = FirestoreService();
 
   bool _isLoading = true;
   Map<String, dynamic>? _friendData;
+  bool _isFavorite = false;
 
   @override
   void initState() {
     super.initState();
     _loadFriendInfo();
+    _checkFavoriteStatus();
   }
 
-  /// ✅ 친구 정보 불러오기
   Future<void> _loadFriendInfo() async {
     try {
       DocumentSnapshot friendSnapshot = await _firestore.collection("users").doc(widget.receiverId).get();
@@ -42,27 +45,51 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           _friendData = null;
           _isLoading = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("친구 정보를 불러올 수 없습니다.")),
+        );
       }
     } catch (e) {
-      print("❌ 친구 정보 불러오기 실패: $e");
       setState(() {
         _friendData = null;
         _isLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("친구 정보 불러오기 실패: $e")),
+      );
     }
   }
 
-  /// ✅ 채팅 페이지로 이동
+  Future<void> _checkFavoriteStatus() async {
+    String currentUserId = _auth.currentUser!.uid;
+    DocumentSnapshot favoriteDoc = await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).get();
+    setState(() {
+      _isFavorite = favoriteDoc.exists;
+    });
+  }
+
+  Future<void> _toggleFavorite() async {
+    String currentUserId = _auth.currentUser!.uid;
+    if (_isFavorite) {
+      await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).delete();
+    } else {
+      await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).set({});
+    }
+    setState(() {
+      _isFavorite = !_isFavorite;
+    });
+  }
+
   void _startChat() {
-    String chatRoomId = _getChatRoomId(FirebaseAuth.instance.currentUser!.uid, widget.receiverId);
+    String chatRoomId = _getChatRoomId(_auth.currentUser!.uid, widget.receiverId);
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ChatPage(
-          chatRoomId: chatRoomId, // ✅ chatRoomId 추가
-          chatPartnerName: widget.receiverName, // ✅ receiverName을 chatPartnerName으로 변경
-          chatPartnerImage: widget.receiverImage ?? "", // ✅ 상대방 프로필 이미지 추가 (필요하면 위젯에서 받아오기)
+          chatRoomId: chatRoomId,
+          chatPartnerName: widget.receiverName,
+          chatPartnerImage: _firestoreService.sanitizeProfileImage(widget.receiverImage) ?? "",
           receiverId: widget.receiverId,
           receiverName: widget.receiverName,
         ),
@@ -70,33 +97,26 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// ✅ 채팅방 ID 생성 함수 (채팅방이 없으면 새로 생성 가능)
   String _getChatRoomId(String userId, String receiverId) {
     return userId.hashCode <= receiverId.hashCode
         ? '$userId\_$receiverId'
         : '$receiverId\_$userId';
   }
 
-
-  /// ✅ 친구 삭제
   Future<void> _removeFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
     try {
-      // 현재 유저의 친구 목록에서 제거
       await _firestore.collection("users").doc(currentUserId).collection("friends").doc(widget.receiverId).delete();
-      // 상대 유저의 친구 목록에서 현재 유저 제거
       await _firestore.collection("users").doc(widget.receiverId).collection("friends").doc(currentUserId).delete();
 
-      Navigator.pop(context); // ✅ 삭제 후 이전 화면으로 이동
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
     } catch (e) {
-      print("❌ 친구 삭제 실패: $e");
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
     }
   }
 
-  /// ✅ 친구 차단
   Future<void> _blockFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
@@ -105,10 +125,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
         "blockedAt": FieldValue.serverTimestamp(),
       });
 
-      Navigator.pop(context); // ✅ 차단 후 이전 화면으로 이동
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 차단되었습니다.")));
     } catch (e) {
-      print("❌ 친구 차단 실패: $e");
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
     }
   }
@@ -116,11 +135,11 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blueGrey[50], // ✅ 배경색 변경
       appBar: AppBar(
         title: const Text("친구 정보", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -130,73 +149,70 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // ✅ 프로필 카드
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
               elevation: 4,
+              color: Theme.of(context).cardColor,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // ✅ 프로필 사진
                     CircleAvatar(
                       radius: 70,
-                      backgroundImage: _friendData!["profileImage"] != null &&
-                          _friendData!["profileImage"].toString().isNotEmpty
-                          ? NetworkImage(_friendData!["profileImage"])
+                      backgroundImage: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isNotEmpty
+                          ? NetworkImage(_firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? ""))
                           : null,
-                      child: (_friendData!["profileImage"] == null ||
-                          _friendData!["profileImage"].toString().isEmpty)
-                          ? const Icon(Icons.person, size: 70, color: Colors.grey)
+                      foregroundImage: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isNotEmpty &&
+                          !Uri.tryParse(_firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? ""))!.hasAbsolutePath
+                          ? const AssetImage("assets/default_profile.png") as ImageProvider
+                          : null,
+                      child: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isEmpty
+                          ? const Icon(Icons.person, size: 70)
                           : null,
                     ),
                     const SizedBox(height: 15),
-
-                    // ✅ 닉네임
                     Text(
                       _friendData!["nickname"] ?? "알 수 없음",
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
                     ),
                     const SizedBox(height: 20),
-
-                    // ✅ 사용자 정보 (홈샵, 레이팅, 다트 보드)
                     _infoTile(Icons.store, "홈샵", _friendData!["homeShop"] ?? "없음"),
-                    _infoTile(Icons.star, "레이팅", _friendData!["rating"]?.toString() ?? "정보 없음"),
+                    _infoTile(Icons.star, "레이팅", _friendData!.containsKey("rating") ? "${_friendData!["rating"]}" : "정보 없음"),
                     _infoTile(Icons.sports_esports, "다트 보드", _friendData!["dartBoard"] ?? "정보 없음"),
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // ✅ 버튼 3개 (메시지 / 친구 삭제 / 차단)
-            _buildActionButton(Icons.chat, "메시지 보내기", Colors.blueAccent, _startChat),
-            _buildActionButton(Icons.person_remove, "친구 삭제", Colors.redAccent, _removeFriend),
-            _buildActionButton(Icons.block, "차단하기", Colors.grey, _blockFriend),
+            _buildActionButton(Icons.chat, "메시지 보내기", Theme.of(context).primaryColor!, _startChat),
+            _buildActionButton(Icons.star_border, "즐겨찾기", _isFavorite ? Colors.amber : Colors.grey, _toggleFavorite),
+            _buildActionButton(Icons.person_remove, "친구 삭제", Theme.of(context).colorScheme.error!, _removeFriend),
+            _buildActionButton(Icons.block, "차단하기", Theme.of(context).disabledColor!, _blockFriend),
           ],
         ),
       ),
     );
   }
 
-  /// ✅ 정보 표시 UI
   Widget _infoTile(IconData icon, String title, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blueAccent),
+          Icon(icon, color: Theme.of(context).primaryColor),
           const SizedBox(width: 10),
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Theme.of(context).textTheme.bodyLarge?.color)),
           const Spacer(),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
         ],
       ),
     );
   }
 
-  /// ✅ 버튼 UI
   Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),

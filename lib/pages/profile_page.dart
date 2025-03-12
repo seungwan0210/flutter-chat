@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_service.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/firestore_service.dart';
 import 'package:dartschat/pages/settings/dartboard_page.dart';
 import 'package:dartschat/pages/settings/rating_page.dart';
 import 'package:dartschat/pages/settings/message_setting_page.dart';
 import 'package:dartschat/pages/settings/friend_management_page.dart';
 import 'package:dartschat/pages/settings/blocked_users_page.dart';
-import 'package:dartschat/pages/settings/LogoutDialog.dart';
+import 'package:dartschat/pages/settings/LogoutDialog.dart'; // 파일 이름 확인
 import 'package:dartschat/pages/settings/nickname_edit_page.dart';
 import 'package:dartschat/pages/settings/homeshop_page.dart';
 
@@ -21,82 +22,98 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
 
   String _nickname = "닉네임 없음";
   String _homeShop = "설정 안됨";
   String _profileImageUrl = "";
   String _dartBoard = "다트라이브";
   int _rating = 1;
-  String _messageSetting = "전체 허용"; // ✅ Firestore 실시간 감지
-  bool _isLoading = true;
+  String _messageSetting = "전체 허용";
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    setState(() => _isLoading = true);
-    Map<String, dynamic>? userData = await _firestoreService.getUserData();
-
-    if (userData != null) {
-      setState(() {
-        _nickname = userData["nickname"] ?? "닉네임 없음";
-        _homeShop = userData["homeShop"] ?? "설정 안됨";
-        _profileImageUrl = userData["profileImage"] ?? "";
-        _dartBoard = userData["dartBoard"] ?? "다트라이브";
-        _rating = userData["rating"] ?? 1;
-        _messageSetting = userData["messageSetting"] ?? "전체 허용";
-      });
-    }
-
-    setState(() => _isLoading = false);
-  }
-
-  /// ✅ **이미지 선택 및 업데이트**
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
 
     if (image != null) {
-      setState(() {
-        _profileImageUrl = image.path;
-      });
+      try {
+        String fileName = 'profile_images/${_auth.currentUser!.uid}.jpg';
+        Reference storageRef = _storage.ref().child(fileName);
+        UploadTask uploadTask = storageRef.putData(await image.readAsBytes());
+        TaskSnapshot snapshot = await uploadTask;
+        String downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _firestoreService.updateUserData(
-          {"profileImage": _profileImageUrl});
+        setState(() {
+          _profileImageUrl = downloadUrl;
+        });
+        await _firestoreService.updateUserData({"profileImage": _profileImageUrl});
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("이미지 업로드 실패: $e")),
+        );
+      }
     }
+  }
+
+  /// URL 유효성 검사
+  bool _isValidImageUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    return _firestoreService.sanitizeProfileImage(url).isNotEmpty;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // ✅ 밝은 배경 (화이트 계열)
       appBar: AppBar(
-        title: const Text("프로필",
-            style: TextStyle(
-                color: Color(0xFF1A237E), fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white, // ✅ 앱바 화이트
-        elevation: 2, // ✅ 더 깔끔한 그림자 효과
-        iconTheme: const IconThemeData(color: Color(0xFF1A237E)), // ✅ 아이콘 다크 블루
+        title: Text("프로필", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor)),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        elevation: 2,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: StreamBuilder<Map<String, dynamic>?>(
-        stream: _firestoreService.listenToUserData(), // ✅ Firestore 실시간 감지
+        stream: _firestoreService.listenToUserData(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator()); // ✅ 로딩 중 UI
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Darts Circle 로딩 중...",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
 
-          if (snapshot.hasData) {
-            // ✅ Firestore의 최신 데이터 반영
-            _nickname = snapshot.data?["nickname"] ?? "닉네임 없음";
-            _homeShop = snapshot.data?["homeShop"] ?? "설정 안됨";
-            _profileImageUrl = snapshot.data?["profileImage"] ?? "";
-            _dartBoard = snapshot.data?["dartBoard"] ?? "다트라이브";
-            _rating = snapshot.data?["rating"] ?? 1;
-            _messageSetting = snapshot.data?["messageReceiveSetting"] ?? "전체 허용";
+          if (snapshot.hasError || !snapshot.hasData) {
+            return Center(
+              child: Text(
+                "프로필 정보를 불러오는 중 오류가 발생했습니다.",
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            );
           }
+
+          var userData = snapshot.data!;
+          _nickname = userData["nickname"] ?? "닉네임 없음";
+          _homeShop = userData["homeShop"] ?? "설정 안됨";
+          _dartBoard = userData["dartBoard"] ?? "다트라이브";
+          _rating = userData["rating"] ?? 1;
+          _messageSetting = userData["messageSetting"] ?? "전체 허용";
+
+          String? rawProfileImage = userData["profileImage"];
+          if (rawProfileImage != null && rawProfileImage.contains('via.placeholder.com')) {
+            _firestoreService.updateUserData({"profileImage": ""});
+            rawProfileImage = "";
+          }
+          _profileImageUrl = _firestoreService.sanitizeProfileImage(rawProfileImage ?? "") ?? "";
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
@@ -104,11 +121,11 @@ class _ProfilePageState extends State<ProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _buildProfileImage(),
-                const SizedBox(height: 20), // ✅ 이미지와 정보 간격 줄이기
+                const SizedBox(height: 20),
                 _buildProfileInfo(),
-                const SizedBox(height: 30), // ✅ 더 넓은 간격으로 조정
+                const SizedBox(height: 30),
                 _buildSettingsIcons(),
-                const SizedBox(height: 20), // ✅ 마지막 하단 여백 추가
+                const SizedBox(height: 20),
               ],
             ),
           );
@@ -117,75 +134,88 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-
-
-  /// ✅ **프로필 이미지 변경**
+  /// 프로필 이미지 변경 (에러 핸들링 강화)
   Widget _buildProfileImage() {
     return GestureDetector(
       onTap: _pickImage,
-      child: CircleAvatar(
-        radius: 70,
-        backgroundImage: _profileImageUrl.isNotEmpty
-            ? NetworkImage(_profileImageUrl) as ImageProvider
-            : const AssetImage("assets/default_profile.png"),
-        child: _profileImageUrl.isEmpty
-            ? const Icon(Icons.camera_alt, size: 40, color: Colors.black87)
-            : null,
+      child: Container(
+        width: 140,
+        height: 140,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Theme.of(context).primaryColor, width: 2),
+        ),
+        child: ClipOval(
+          child: _isValidImageUrl(_profileImageUrl)
+              ? Image.network(
+            _profileImageUrl,
+            width: 140,
+            height: 140,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Image.asset(
+                "assets/default_profile.png",
+                width: 140,
+                height: 140,
+                fit: BoxFit.cover,
+              );
+            },
+          )
+              : Image.asset(
+            "assets/default_profile.png",
+            width: 140,
+            height: 140,
+            fit: BoxFit.cover,
+          ),
+        ),
       ),
     );
   }
 
-  /// ✅ **정보 표시 + 클릭 시 변경 가능 (축소 & 중앙 정렬)**
-  Widget _buildEditableField(String label, String value, IconData icon,
-      VoidCallback onTap) {
+  /// 정보 표시 + 클릭 시 변경 가능
+  Widget _buildEditableField(String label, String value, IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        // ✅ 패딩 조정
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        // ✅ 여백 조정
         decoration: BoxDecoration(
-          color: Colors.white,
-          // ✅ 밝은 카드 스타일 유지
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
-          // ✅ 모서리 둥글게
-          border: Border.all(color: Color(0xFF4A90E2), width: 1.5),
-          // ✅ 네온 블루 강조
+          border: Border.all(color: Theme.of(context).primaryColor, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1), // ✅ 은은한 그림자 효과
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center, // ✅ 가운데 정렬
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Color(0xFF4A90E2), size: 24), // ✅ 네온 블루 아이콘
-            const SizedBox(width: 12), // ✅ 아이콘과 텍스트 간격 조정
+            Icon(icon, color: Theme.of(context).primaryColor, size: 24),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 value,
-                textAlign: TextAlign.center, // ✅ 텍스트 중앙 정렬
-                style: const TextStyle(
-                  color: Colors.black87,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             const SizedBox(width: 12),
-            const Icon(Icons.edit, color: Colors.grey, size: 22), // ✅ 편집 아이콘
+            Icon(Icons.edit, color: Theme.of(context).iconTheme.color),
           ],
         ),
       ),
     );
   }
 
-
-  /// ✅ **프로필 정보 섹션 (수정된 버전)**
+  /// 프로필 정보 섹션
   Widget _buildProfileInfo() {
     return Column(
       children: [
@@ -235,61 +265,57 @@ class _ProfilePageState extends State<ProfilePage> {
             MaterialPageRoute(builder: (context) => const MessageSettingPage()),
           );
           if (updatedMessageSetting != null) {
-            setState(() {
-              _messageSetting = updatedMessageSetting;
-            });
-            await _firestoreService.updateUserData({"messageReceiveSetting": _messageSetting});
+            setState(() => _messageSetting = updatedMessageSetting);
+            await _firestoreService.updateUserData({"messageSetting": _messageSetting});
           }
         }),
       ],
     );
   }
 
-
-  /// ✅ **친구 목록, 차단 목록, 로그아웃**
+  /// 친구 목록, 차단 목록, 로그아웃
   Widget _buildSettingsIcons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _buildSettingsIcon(Icons.people, "친구 목록", () {
-          Navigator.push(context, MaterialPageRoute(
-              builder: (context) => const FriendManagementPage()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendManagementPage()));
         }),
         _buildSettingsIcon(Icons.block, "차단 목록", () {
-          Navigator.push(context, MaterialPageRoute(
-              builder: (context) => const BlockedUsersPage()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const BlockedUsersPage()));
         }),
         _buildSettingsIcon(Icons.logout, "로그아웃", () {
           showDialog(
-              context: context, builder: (context) => LogoutDialog());
+            context: context,
+            builder: (context) => LogoutDialog(firestoreService: _firestoreService),
+          );
         }),
       ],
     );
   }
 
-  /// ✅ **설정 아이콘 UI (업데이트)**
+  /// 설정 아이콘 UI
   Widget _buildSettingsIcon(IconData icon, String label, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 200), // ✅ 부드러운 애니메이션 효과
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             child: CircleAvatar(
-              radius: 34, // ✅ 아이콘 크기 키움
-              backgroundColor: const Color(0000), // ✅ 다크 블루 배경
-              child: Icon(icon, size: 30,
-                  color: const Color(0xFF00B0FF)), // ✅ 네온 블루 아이콘
+              radius: 34,
+              backgroundColor: Theme.of(context).primaryColor,
+              child: Icon(icon, size: 30, color: Theme.of(context).colorScheme.onPrimary),
             ),
           ),
-          const SizedBox(height: 8), // ✅ 간격 조정
+          const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 15, // ✅ 가독성 향상
-              fontWeight: FontWeight.w600, // ✅ 폰트 두께 추가
-              color: Color(0xFF1A237E), // ✅ 다크 블루 텍스트
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
         ],

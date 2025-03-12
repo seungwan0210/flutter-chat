@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'play_summary_page.dart'; // 오늘의 플레이 요약 페이지 import
+import 'play_summary_page.dart';
 
 class MorePage extends StatelessWidget {
   const MorePage({Key? key}) : super(key: key);
@@ -9,30 +9,32 @@ class MorePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('업데이트 예정'),
-        content: Text('추후 업데이트 예정입니다.'),
+        title: Text('업데이트 예정', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color)),
+        content: Text('추후 업데이트 예정입니다.', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('확인'),
+            child: Text('확인', style: TextStyle(color: Theme.of(context).primaryColor)),
           ),
         ],
       ),
     );
   }
 
-  void _launchURL(String url) async {
+  Future<void> _launchURL(BuildContext context, String url) async {
     Uri uri = Uri.parse(url);
     try {
       bool launched = await launchUrl(
         uri,
-        mode: LaunchMode.platformDefault, // ✅ 기기별 최적화된 모드 사용
+        mode: LaunchMode.platformDefault,
       );
       if (!launched) {
         throw 'Could not launch $url';
       }
     } catch (e) {
-      print('Could not launch $url: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('URL 열기 실패: $e')),
+      );
     }
   }
 
@@ -40,54 +42,59 @@ class MorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('더보기', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.blueAccent,
+        title: Text('더보기', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor)),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
-      backgroundColor: Colors.grey[200],
-      body: Column(
-        children: [
-          Expanded(
-            child: Padding(
+      body: SingleChildScrollView( // 스크롤 가능성 추가
+        child: Column(
+          children: [
+            Padding(
               padding: const EdgeInsets.all(16.0),
-              child: GridView.count(
-                crossAxisCount: 3, // 3x2 형식
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+              child: GridView.builder(
                 shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(), // 아이콘 영역 스크롤 방지
-                children: [
-                  _buildIconButton(context, Icons.bar_chart, '오늘의 플레이', () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => PlaySummaryPage()),
-                    );
-                  }),
-                  _buildIconButton(context, Icons.emoji_events, '토너먼트 정보', () {
-                    _showUpdateDialog(context);
-                  }),
-                  _buildIconButton(context, Icons.update, '업데이트 예정', () {
-                    _showUpdateDialog(context);
-                  }),
-                  _buildIconButton(context, Icons.update, '업데이트 예정', () {
-                    _showUpdateDialog(context);
-                  }),
-                  _buildIconButton(context, Icons.update, '업데이트 예정', () {
-                    _showUpdateDialog(context);
-                  }),
-                  _buildIconButton(context, Icons.update, '업데이트 예정', () {
-                    _showUpdateDialog(context);
-                  }),
-                ],
+                physics: const NeverScrollableScrollPhysics(), // GridView 자체는 스크롤 방지, 외부 SingleChildScrollView로 대체
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: MediaQuery.of(context).size.width / 3 - 16, // 3열 기준, 간격 고려
+                  crossAxisSpacing: 8, // 간격 줄임
+                  mainAxisSpacing: 8, // 간격 줄임
+                  childAspectRatio: 1, // 정사각형 비율 유지
+                ),
+                itemCount: 6, // 총 6개 아이콘
+                itemBuilder: (context, index) {
+                  final actions = [
+                        () => Navigator.push(context, MaterialPageRoute(builder: (context) => PlaySummaryPage())),
+                        () => _showUpdateDialog(context),
+                        () => _showUpdateDialog(context),
+                        () => _showUpdateDialog(context),
+                        () => _showUpdateDialog(context),
+                        () => _showUpdateDialog(context),
+                  ];
+                  return _buildIconButton(context, [
+                    Icons.bar_chart,
+                    Icons.emoji_events,
+                    Icons.update,
+                    Icons.update,
+                    Icons.update,
+                    Icons.update,
+                  ][index], [
+                    '오늘의 플레이',
+                    '토너먼트 정보',
+                    '업데이트 예정',
+                    '업데이트 예정',
+                    '업데이트 예정',
+                    '업데이트 예정',
+                  ][index], actions[index]);
+                },
               ),
             ),
-          ),
-          SizedBox(height: 20),
-          _buildImageBanner('assets/bulls_fighter.webp', 'https://m.dartskorea.com/'),
-          _buildImageBanner('assets/dartslive.webp', 'https://www.dartslive.com/kr/'),
-          _buildImageBanner('assets/phoenix.webp', 'https://www.phoenixdarts.com/kr'),
-          SizedBox(height: 20),
-        ],
+            const SizedBox(height: 20),
+            _buildImageBanner(context, 'assets/bulls_fighter.webp', 'https://m.dartskorea.com/'),
+            _buildImageBanner(context, 'assets/dartslive.webp', 'https://www.dartslive.com/kr/'),
+            _buildImageBanner(context, 'assets/phoenix.webp', 'https://www.phoenixdarts.com/kr'),
+            const SizedBox(height: 40), // 하단 여백 확보
+          ],
+        ),
       ),
     );
   }
@@ -97,28 +104,32 @@ class MorePage extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.3),
               blurRadius: 5,
               spreadRadius: 2,
-              offset: Offset(2, 3),
+              offset: const Offset(2, 3),
             ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 50, color: Colors.blueAccent),
-            SizedBox(height: 8),
+            Icon(icon, size: 50, color: Theme.of(context).primaryColor),
+            const SizedBox(height: 8),
             Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
             ),
           ],
         ),
@@ -126,11 +137,11 @@ class MorePage extends StatelessWidget {
     );
   }
 
-  Widget _buildImageBanner(String imagePath, String url) {
+  Widget _buildImageBanner(BuildContext context, String imagePath, String url) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: InkWell(
-        onTap: () => _launchURL(url),
+        onTap: () => _launchURL(context, url),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           height: 100,
@@ -138,15 +149,16 @@ class MorePage extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.3),
                 blurRadius: 6,
                 spreadRadius: 2,
-                offset: Offset(2, 4),
+                offset: const Offset(2, 4),
               ),
             ],
             image: DecorationImage(
               image: AssetImage(imagePath),
               fit: BoxFit.cover,
+              onError: (exception, stackTrace) => const Icon(Icons.error, size: 50),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_detail_page.dart';
+import '../../services/firestore_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,32 +13,27 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
+  final FirestoreService _firestoreService = FirestoreService(); // FirestoreService 인스턴스 선언
   String selectedBoardFilter = "전체";
   String selectedRatingFilter = "전체";
   String homeShopSearch = "";
-  static const int MAX_RATING = 30; // ✅ `static const`로 변경
+  static const int MAX_RATING = 30;
 
   Map<String, dynamic>? currentUserData;
   late Stream<DocumentSnapshot> profileStatsStream;
 
-  List<String> ratingOptions = ["전체"]; // ✅ Firestore가 아닌 직접 생성
-
-  // ✅ 추가: 메시지 설정 기본값 설정
+  List<String> ratingOptions = ["전체"];
   String _messageSetting = "ALL";
-
 
   @override
   void initState() {
     super.initState();
     _listenToCurrentUser();
     profileStatsStream = _getProfileStatsStream();
-
-    // ✅ `setState()` 없이 직접 초기화
     ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
   }
 
-
-  /// ✅ Firestore에서 로그인한 사용자 정보 실시간 감지
+  /// Firestore에서 로그인한 사용자 정보 실시간 감지
   void _listenToCurrentUser() {
     String currentUserId = auth.currentUser!.uid;
     FirebaseFirestore.instance
@@ -48,32 +44,33 @@ class _HomePageState extends State<HomePage> {
       if (userDoc.exists) {
         setState(() {
           currentUserData = userDoc.data() as Map<String, dynamic>;
-          // ✅ Firestore에서 메시지 설정 가져와 업데이트
           _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
         });
       }
+    }, onError: (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
+      );
     });
   }
 
-
-
-  /// ✅ Firestore에서 프로필 통계 실시간 가져오기
+  /// Firestore에서 프로필 통계 실시간 가져오기
   Stream<DocumentSnapshot> _getProfileStatsStream() {
     String currentUserId = auth.currentUser!.uid;
-    return FirebaseFirestore.instance.collection("users")
-        .doc(currentUserId)
-        .snapshots();
+    return FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("홈", style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
+        title: Text(
+          "홈",
+          style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor), // const 제거
+        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
       ),
       body: Column(
         children: [
@@ -86,29 +83,27 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 10),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection("users")
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection("users").snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
-                  return const Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      "사용자 목록을 불러오는 중 오류가 발생했습니다.",
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                  );
+                }
 
                 var users = snapshot.data!.docs.where((user) {
-                  if (user.id == auth.currentUser!.uid)
-                    return false; // ✅ 내 정보는 제외
-
-                  String dartBoard = user["dartBoard"] ?? "없음";
-                  int rating = user.data().toString().contains('rating')
-                      ? user["rating"] ?? 0
-                      : 0;
-                  String homeShop = user["homeShop"] ?? "없음";
-
-                  return (selectedBoardFilter == "전체" ||
-                      dartBoard == selectedBoardFilter) &&
-                      (selectedRatingFilter == "전체" ||
-                          rating.toString() == selectedRatingFilter) &&
-                      (homeShopSearch.isEmpty ||
-                          homeShop.toLowerCase().contains(
-                              homeShopSearch.toLowerCase()));
+                  if (user.id == auth.currentUser!.uid) return false;
+                  Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
+                  String dartBoard = userData["dartBoard"] ?? "없음";
+                  int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
+                  String homeShop = userData["homeShop"] ?? "없음";
+                  return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
+                      (selectedRatingFilter == "전체" || rating.toString() == selectedRatingFilter) &&
+                      (homeShopSearch.isEmpty || homeShop.toLowerCase().contains(homeShopSearch.toLowerCase()));
                 }).toList();
 
                 return _buildUserList(users);
@@ -125,7 +120,7 @@ class _HomePageState extends State<HomePage> {
 
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
-    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용"; // ✅ Firestore 값 기준으로 설정
+    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
 
     return GestureDetector(
       onTap: () {
@@ -135,26 +130,25 @@ class _HomePageState extends State<HomePage> {
             builder: (context) => ProfileDetailPage(
               userId: auth.currentUser!.uid,
               nickname: nickname,
-              profileImage: currentUserData!["profileImage"] ?? "",
+              profileImage: _firestoreService.sanitizeProfileImage(currentUserData!["profileImage"] ?? "") ?? "",
               isCurrentUser: true,
             ),
           ),
         );
       },
       child: Container(
-        color: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            _buildProfileImage(currentUserData!["profileImage"], isOnline),
+            _buildProfileImage(_firestoreService.sanitizeProfileImage(currentUserData!["profileImage"] ?? "") ?? "", isOnline),
             const SizedBox(width: 15),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nickname, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}"),
-                Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!["rating"] ?? 0}"),
-                Text("메시지 설정: $messageSetting", style: const TextStyle(fontSize: 14, color: Colors.black54)), // ✅ 중복 제거 후 정확한 값 표시
+                Text(nickname, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+                Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+                Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
               ],
             ),
           ],
@@ -163,22 +157,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-
-
-  /// ✅ **유저 리스트 UI 추가**
+  /// 유저 리스트 UI
   Widget _buildUserList(List<QueryDocumentSnapshot> users) {
     return ListView(
       children: [
-        _buildUserSection("온라인 유저",
-            users.where((user) => user["status"] == "online").toList()),
-        _buildUserSection("오프라인 유저",
-            users.where((user) => user["status"] == "offline").toList()),
+        _buildUserSection("온라인 유저", users.where((user) => user["status"] == "online").toList()),
+        _buildUserSection("오프라인 유저", users.where((user) => user["status"] == "offline").toList()),
       ],
     );
   }
 
-  /// ✅ **유저 섹션 추가 (온라인/오프라인)**
+  /// 유저 섹션 (온라인/오프라인)
   Widget _buildUserSection(String title, List<QueryDocumentSnapshot> users) {
     if (users.isEmpty) return const SizedBox();
     return Column(
@@ -186,8 +175,7 @@ class _HomePageState extends State<HomePage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(title, style: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold)),
+          child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
         ),
         ...users.map((user) => _buildUserTile(user)).toList(),
       ],
@@ -197,20 +185,21 @@ class _HomePageState extends State<HomePage> {
   Widget _buildUserTile(QueryDocumentSnapshot user) {
     String currentUserId = auth.currentUser!.uid;
     bool isOnline = user["status"] == "online";
-    String messageSetting = user.data().toString().contains("messageReceiveSetting")
-        ? user["messageReceiveSetting"] ?? "전체 허용"
-        : "전체 허용"; // ✅ 필드가 없을 경우 기본값 설정
+    Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
+    String messageSetting = userData.containsKey("messageReceiveSetting")
+        ? userData["messageReceiveSetting"] ?? "전체 허용"
+        : "전체 허용";
+    int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
 
     return ListTile(
-      leading: _buildProfileImage(user["profileImage"], isOnline),
-      title: Text(user["nickname"] ?? "알 수 없음",
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      leading: _buildProfileImage(_firestoreService.sanitizeProfileImage(userData["profileImage"] ?? "") ?? "", isOnline),
+      title: Text(userData["nickname"] ?? "알 수 없는 사용자", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("홈샵: ${user["homeShop"] ?? "없음"}"),
-          Text("${user["dartBoard"] ?? "없음"} | 레이팅: ${user["rating"] ?? 0}"),
-          Text("메시지 설정: $messageSetting", style: const TextStyle(fontSize: 14, color: Colors.black54)), // ✅ 필드가 없을 경우 기본값 표시
+          Text("홈샵: ${userData["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+          Text("${userData["dartBoard"] ?? "없음"} | 레이팅: $rating", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+          Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
         ],
       ),
       onTap: () {
@@ -219,8 +208,8 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(
             builder: (context) => ProfileDetailPage(
               userId: user.id,
-              nickname: user["nickname"] ?? "알 수 없음",
-              profileImage: user["profileImage"] ?? "",
+              nickname: userData["nickname"] ?? "알 수 없음",
+              profileImage: _firestoreService.sanitizeProfileImage(userData["profileImage"] ?? "") ?? "",
               isCurrentUser: user.id == currentUserId,
             ),
           ),
@@ -229,15 +218,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  /// ✅ **필터 & 검색 UI (카드 제거, 간격 조정)**
+  /// 필터 & 검색 UI
   Widget _buildFilterAndSearch() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Container(
-            color: Colors.white, // ✅ **배경색 화이트 적용**
             child: Column(
               children: [
                 Row(
@@ -253,57 +240,66 @@ class _HomePageState extends State<HomePage> {
                     Expanded(
                       child: _dropdownFilter(
                         selectedRatingFilter,
-                        ratingOptions, // ✅ Firestore에서 불러온 게 아니라, 전체 레이팅 목록 사용
+                        ratingOptions,
                             (newValue) => setState(() => selectedRatingFilter = newValue!),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4), // ✅ 필터 아래 간격 줄임
+                const SizedBox(height: 4),
                 SizedBox(
-                  height: 36, // ✅ 검색창 높이 조절
+                  height: 36,
                   child: TextField(
                     onChanged: (value) => setState(() => homeShopSearch = value.trim()),
                     decoration: InputDecoration(
                       labelText: "홈샵 검색",
-                      labelStyle: const TextStyle(fontSize: 14),
-                      prefixIcon: const Icon(Icons.search, size: 18),
+                      labelStyle: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color),
+                      prefixIcon: Icon(Icons.search, size: 18, color: Theme.of(context).iconTheme.color),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
                     ),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 2), // ✅ 필터 & 유저 목록 사이 간격 조정
+          const SizedBox(height: 2),
         ],
       ),
     );
   }
 
-
-
-  /// ✅ **통계 아이템 UI 추가**
+  /// 통계 아이템 UI
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.blueAccent)),
-        Text(
-            title, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
+        Text(title, style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
       ],
     );
   }
 
-  /// ✅ **프로필 통계 UI**
+  /// 프로필 통계 UI
   Widget _buildProfileStats() {
     return StreamBuilder<DocumentSnapshot>(
       stream: profileStatsStream,
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              "통계 정보를 불러오는 중 오류가 발생했습니다.",
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          );
+        }
 
         var stats = snapshot.data!.data() as Map<String, dynamic>;
 
@@ -311,7 +307,9 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.all(8),
           margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 16),
           decoration: BoxDecoration(
-              color: Colors.grey[200], borderRadius: BorderRadius.circular(12)),
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -325,51 +323,48 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// 프로필 이미지 (이미지 로드 오류 처리 강화)
   Widget _buildProfileImage(String profileImage, bool isOnline) {
+    String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(profileImage) ?? "";
     return Stack(
       children: [
         CircleAvatar(
           radius: 28,
-          backgroundImage: profileImage.isNotEmpty
-              ? NetworkImage(profileImage)
+          backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
+          foregroundImage: sanitizedProfileImage.isNotEmpty && !Uri.tryParse(sanitizedProfileImage)!.hasAbsolutePath
+              ? const AssetImage("assets/default_profile.png") as ImageProvider
               : null,
-          child: profileImage.isEmpty
-              ? const Icon(Icons.person, size: 28)
-              : null,
+          child: sanitizedProfileImage.isEmpty ? const Icon(Icons.person, size: 28) : null,
         ),
-        Positioned(bottom: 0,
-            right: 0,
-            child: Icon(
-                Icons.circle, color: isOnline ? Colors.green : Colors.red,
-                size: 12)),
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: Icon(Icons.circle, color: isOnline ? Colors.green : Colors.red, size: 12),
+        ),
       ],
     );
   }
 
-  Widget _buildProfileDetails(Map<String, dynamic> userData) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("홈샵: ${userData["homeShop"] ?? "없음"}"),
-        Text("${userData["dartBoard"] ?? "없음"} | 레이팅: ${userData["rating"] ??
-            0}"), // ✅ "다트보드: " 제거
-        Text("메시지 설정: ${userData["messageSetting"] ?? "없음"}"),
-      ],
+  /// 드롭다운 필터 UI
+  Widget _dropdownFilter(String selectedValue, List<String> items, ValueChanged<String?> onChanged) {
+    return DropdownButtonFormField<String>(
+      value: selectedValue,
+      onChanged: onChanged,
+      items: items.isNotEmpty
+          ? items.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList()
+          : [const DropdownMenuItem(value: "전체", child: Text("전체"))],
+      decoration: InputDecoration(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+        ),
+        filled: true,
+        fillColor: Theme.of(context).cardColor,
+      ),
+      dropdownColor: Theme.of(context).cardColor,
+      style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
     );
   }
 }
-/// ✅ **드롭다운 필터 UI 수정 (Firestore 데이터 반영)**
-Widget _dropdownFilter(String selectedValue, List<String> items, ValueChanged<String?> onChanged) {
-  return DropdownButtonFormField<String>(
-    value: selectedValue,
-    onChanged: onChanged,
-    items: items.isNotEmpty
-        ? items.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList()
-        : [const DropdownMenuItem(value: "전체", child: Text("전체"))], // ✅ 데이터 없을 때 기본값 설정
-    decoration: InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-  );
-}
-
