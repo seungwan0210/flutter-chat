@@ -13,7 +13,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
-  final FirestoreService _firestoreService = FirestoreService(); // FirestoreService 인스턴스 선언
+  final FirestoreService _firestoreService = FirestoreService();
   String selectedBoardFilter = "전체";
   String selectedRatingFilter = "전체";
   String homeShopSearch = "";
@@ -24,6 +24,7 @@ class _HomePageState extends State<HomePage> {
 
   List<String> ratingOptions = ["전체"];
   String _messageSetting = "ALL";
+  String _rank = "브론즈"; // 등급 추가
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           currentUserData = userDoc.data() as Map<String, dynamic>;
           _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
+          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0); // 등급 계산
         });
       }
     }, onError: (e) {
@@ -60,13 +62,34 @@ class _HomePageState extends State<HomePage> {
     return FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots();
   }
 
+  /// 등급 계산
+  String _calculateRank(int totalViews) {
+    if (totalViews >= 500) return "다이아몬드";
+    if (totalViews >= 200) return "플래티넘";
+    if (totalViews >= 100) return "골드";
+    if (totalViews >= 50) return "실버";
+    return "브론즈";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "홈",
-          style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor), // const 제거
+        title: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection("users").snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text(
+                "홈 (오류)",
+                style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+              );
+            }
+            int userCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+            return Text(
+              "홈 ($userCount)",
+              style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+            );
+          },
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
@@ -146,6 +169,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(nickname, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                Text("등급: $_rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)), // 등급 위치 조정
                 Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                 Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                 Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
@@ -190,6 +214,8 @@ class _HomePageState extends State<HomePage> {
         ? userData["messageReceiveSetting"] ?? "전체 허용"
         : "전체 허용";
     int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
+    int totalViews = userData.containsKey("totalViews") ? userData["totalViews"] ?? 0 : 0;
+    String rank = _calculateRank(totalViews); // 등급 계산
 
     return ListTile(
       leading: _buildProfileImage(_firestoreService.sanitizeProfileImage(userData["profileImage"] ?? "") ?? "", isOnline),
@@ -197,6 +223,7 @@ class _HomePageState extends State<HomePage> {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text("등급: $rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)), // 등급 위치 조정
           Text("홈샵: ${userData["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
           Text("${userData["dartBoard"] ?? "없음"} | 레이팅: $rating", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
           Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
@@ -315,7 +342,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
               _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
-              _buildStatItem("Friend", "${stats["friendCount"] ?? 0}"),
+              _buildStatItem("Rank", _rank),
             ],
           ),
         );

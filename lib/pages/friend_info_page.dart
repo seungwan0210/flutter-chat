@@ -23,6 +23,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   bool _isLoading = true;
   Map<String, dynamic>? _friendData;
   bool _isFavorite = false;
+  int totalViews = 0;
+  int dailyViews = 0;
+  String _rank = "브론즈";
 
   @override
   void initState() {
@@ -38,6 +41,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       if (friendSnapshot.exists) {
         setState(() {
           _friendData = friendSnapshot.data() as Map<String, dynamic>?;
+          totalViews = _friendData!["totalViews"] ?? 0;
+          dailyViews = _friendData!["todayViews"] ?? 0;
+          _rank = _calculateRank(totalViews);
           _isLoading = false;
         });
       } else {
@@ -62,7 +68,12 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
 
   Future<void> _checkFavoriteStatus() async {
     String currentUserId = _auth.currentUser!.uid;
-    DocumentSnapshot favoriteDoc = await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).get();
+    DocumentSnapshot favoriteDoc = await _firestore
+        .collection("users")
+        .doc(currentUserId)
+        .collection("favorites")
+        .doc(widget.receiverId)
+        .get();
     setState(() {
       _isFavorite = favoriteDoc.exists;
     });
@@ -71,9 +82,19 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   Future<void> _toggleFavorite() async {
     String currentUserId = _auth.currentUser!.uid;
     if (_isFavorite) {
-      await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).delete();
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("favorites")
+          .doc(widget.receiverId)
+          .delete();
     } else {
-      await _firestore.collection("users").doc(currentUserId).collection("favorites").doc(widget.receiverId).set({});
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("favorites")
+          .doc(widget.receiverId)
+          .set({});
     }
     setState(() {
       _isFavorite = !_isFavorite;
@@ -98,17 +119,34 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   }
 
   String _getChatRoomId(String userId, String receiverId) {
-    return userId.hashCode <= receiverId.hashCode
-        ? '$userId\_$receiverId'
-        : '$receiverId\_$userId';
+    return userId.hashCode <= receiverId.hashCode ? '$userId\_$receiverId' : '$receiverId\_$userId';
   }
 
   Future<void> _removeFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
     try {
-      await _firestore.collection("users").doc(currentUserId).collection("friends").doc(widget.receiverId).delete();
-      await _firestore.collection("users").doc(widget.receiverId).collection("friends").doc(currentUserId).delete();
+      // 양쪽 유저의 friends 컬렉션에서 삭제
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("friends")
+          .doc(widget.receiverId)
+          .delete();
+      await _firestore
+          .collection("users")
+          .doc(widget.receiverId)
+          .collection("friends")
+          .doc(currentUserId)
+          .delete();
+
+      // 즐겨찾기에서도 삭제
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("favorites")
+          .doc(widget.receiverId)
+          .delete();
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
@@ -121,9 +159,37 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     String currentUserId = _auth.currentUser!.uid;
 
     try {
-      await _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(widget.receiverId).set({
+      // 차단 목록에 추가
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("blockedUsers")
+          .doc(widget.receiverId)
+          .set({
         "blockedAt": FieldValue.serverTimestamp(),
       });
+
+      // 친구 목록에서 삭제
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("friends")
+          .doc(widget.receiverId)
+          .delete();
+      await _firestore
+          .collection("users")
+          .doc(widget.receiverId)
+          .collection("friends")
+          .doc(currentUserId)
+          .delete();
+
+      // 즐겨찾기에서도 삭제
+      await _firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("favorites")
+          .doc(widget.receiverId)
+          .delete();
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 차단되었습니다.")));
@@ -132,103 +198,296 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     }
   }
 
+  String _calculateRank(int totalViews) {
+    if (totalViews >= 500) return "다이아몬드";
+    if (totalViews >= 200) return "플래티넘";
+    if (totalViews >= 100) return "골드";
+    if (totalViews >= 50) return "실버";
+    return "브론즈";
+  }
+
   @override
   Widget build(BuildContext context) {
+    String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(widget.receiverImage) ?? "";
     return Scaffold(
       appBar: AppBar(
-        title: const Text("친구 정보", style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
+        title: const Text(
+          "친구 정보",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _friendData == null
-          ? const Center(child: Text("친구 정보를 불러올 수 없습니다.", style: TextStyle(fontSize: 16)))
+          ? const Center(child: Text("친구 정보를 불러올 수 없습니다.", style: TextStyle(fontSize: 16, color: Colors.white)))
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 4,
-              color: Theme.of(context).cardColor,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 70,
-                      backgroundImage: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isNotEmpty
-                          ? NetworkImage(_firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? ""))
-                          : null,
-                      foregroundImage: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isNotEmpty &&
-                          !Uri.tryParse(_firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? ""))!.hasAbsolutePath
-                          ? const AssetImage("assets/default_profile.png") as ImageProvider
-                          : null,
-                      child: _firestoreService.sanitizeProfileImage(_friendData!["profileImage"] ?? "").isEmpty
-                          ? const Icon(Icons.person, size: 70)
-                          : null,
-                    ),
-                    const SizedBox(height: 15),
-                    Text(
-                      _friendData!["nickname"] ?? "알 수 없음",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _infoTile(Icons.store, "홈샵", _friendData!["homeShop"] ?? "없음"),
-                    _infoTile(Icons.star, "레이팅", _friendData!.containsKey("rating") ? "${_friendData!["rating"]}" : "정보 없음"),
-                    _infoTile(Icons.sports_esports, "다트 보드", _friendData!["dartBoard"] ?? "정보 없음"),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            _buildActionButton(Icons.chat, "메시지 보내기", Theme.of(context).primaryColor!, _startChat),
-            _buildActionButton(Icons.star_border, "즐겨찾기", _isFavorite ? Colors.amber : Colors.grey, _toggleFavorite),
-            _buildActionButton(Icons.person_remove, "친구 삭제", Theme.of(context).colorScheme.error!, _removeFriend),
-            _buildActionButton(Icons.block, "차단하기", Theme.of(context).disabledColor!, _blockFriend),
+            // 상단 프로필 헤더
+            _buildProfileHeader(sanitizedProfileImage),
+            const SizedBox(height: 16),
+            // 통계 정보
+            _buildProfileStats(),
+            const SizedBox(height: 16),
+            // 프로필 정보
+            _buildProfileInfo(),
+            const SizedBox(height: 16),
+            // 액션 버튼
+            _buildActionButtons(),
           ],
         ),
       ),
     );
   }
 
-  Widget _infoTile(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+  /// 프로필 헤더
+  Widget _buildProfileHeader(String sanitizedProfileImage) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.black, Colors.grey.shade900],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Column(
         children: [
-          Icon(icon, color: Theme.of(context).primaryColor),
-          const SizedBox(width: 10),
-          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Theme.of(context).textTheme.bodyLarge?.color)),
-          const Spacer(),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          GestureDetector(
+            onTap: () => _showFullScreenImage(sanitizedProfileImage),
+            child: CircleAvatar(
+              radius: 60,
+              backgroundColor: Colors.white,
+              backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
+              child: sanitizedProfileImage.isEmpty || (Uri.tryParse(sanitizedProfileImage)?.hasAbsolutePath != true)
+                  ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _friendData!["nickname"] ?? "알 수 없음",
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "등급: $_rank",
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon),
-          label: Text(label),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  /// 통계 정보
+  Widget _buildProfileStats() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildStatItem("Total", "$totalViews"),
+          _buildStatItem("Today", "$dailyViews"),
+          _buildStatItem("Rank", _rank),
+        ],
+      ),
+    );
+  }
+
+  /// 통계 아이템
+  Widget _buildStatItem(String title, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.amber,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 프로필 정보
+  Widget _buildProfileInfo() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
+      child: Column(
+        children: [
+          _infoTile(Icons.store, "홈샵", _friendData!["homeShop"] ?? "없음"),
+          _infoTile(Icons.star, "레이팅", _friendData!.containsKey("rating") ? "${_friendData!["rating"]}" : "정보 없음"),
+          _infoTile(Icons.sports_esports, "다트 보드", _friendData!["dartBoard"] ?? "정보 없음"),
+        ],
+      ),
+    );
+  }
+
+  /// 정보 아이템
+  Widget _infoTile(IconData icon, String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.amber, size: 24),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 액션 버튼
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          _buildActionButton(Icons.chat, "메시지 보내기", const LinearGradient(colors: [Colors.amber, Colors.orange]), _startChat),
+          const SizedBox(height: 12),
+          _buildActionButton(
+            _isFavorite ? Icons.star : Icons.star_border,
+            "즐겨찾기",
+            _isFavorite
+                ? const LinearGradient(colors: [Colors.amber, Colors.orange])
+                : const LinearGradient(colors: [Colors.grey, Colors.grey]),
+            _toggleFavorite,
+          ),
+          const SizedBox(height: 12),
+          _buildActionButton(Icons.person_remove, "친구 삭제", const LinearGradient(colors: [Colors.redAccent, Colors.red]), _removeFriend),
+          const SizedBox(height: 12),
+          _buildActionButton(Icons.block, "차단하기", const LinearGradient(colors: [Colors.grey, Colors.grey]), _blockFriend),
+        ],
+      ),
+    );
+  }
+
+  /// 액션 버튼 스타일링
+  Widget _buildActionButton(IconData icon, String label, LinearGradient gradient, VoidCallback onPressed) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: Colors.white),
+        label: Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  /// 풀스크린 이미지 확대 다이얼로그
+  void _showFullScreenImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Center(
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Image.asset(
+                    "assets/default_profile.png",
+                    fit: BoxFit.contain,
+                  ),
+                )
+                    : Image.asset(
+                  "assets/default_profile.png",
+                  fit: BoxFit.contain,
+                ),
+              ),
+              Positioned(
+                top: 20,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
