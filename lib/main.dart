@@ -4,9 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/login_page.dart';
 import 'pages/main_page.dart';
 import 'firebase_options.dart';
+import 'services/firestore_service.dart'; // FirestoreService 임포트
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +17,21 @@ void main() async {
   );
   await initializeDateFormatting('ko_KR', null);
   Logger().i("✅ intl 초기화 완료: ko_KR");
+
+  // FirestoreService 인스턴스 생성
+  FirestoreService firestoreService = FirestoreService();
+
+  // 마이그레이션 실행 여부 확인
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  bool hasMigrated = prefs.getBool('hasMigratedProfileImagesToNewFormat') ?? false;
+
+  if (!hasMigrated) {
+    await firestoreService.migrateProfileImagesToNewFormat();
+    await prefs.setBool('hasMigratedProfileImagesToNewFormat', true);
+    Logger().i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
+  } else {
+    Logger().i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
+  }
 
   runApp(const DartChatApp());
 }
@@ -61,7 +78,7 @@ class DartChatApp extends StatelessWidget {
         dividerColor: Colors.grey[300],
         cardColor: Colors.white,
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber).copyWith(
-          brightness: Brightness.light, // 명시적 밝기 설정
+          brightness: Brightness.light,
           primary: Colors.amber[700],
           secondary: Colors.black,
           error: Colors.red,
@@ -102,7 +119,7 @@ class DartChatApp extends StatelessWidget {
         dividerColor: Colors.grey[700],
         cardColor: Colors.grey[800],
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber).copyWith(
-          brightness: Brightness.dark, // 명시적 다크 모드 밝기 설정
+          brightness: Brightness.dark,
           primary: Colors.amber[600],
           secondary: Colors.grey[800],
           error: Colors.redAccent,
@@ -164,7 +181,8 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "uid": user.uid,
           "email": user.email,
           "nickname": "새 유저",
-          "profileImage": "",
+          "profileImages": [], // 새로운 형식으로 초기화
+          "mainProfileImage": "", // 대표 이미지 필드 추가
           "dartBoard": "다트라이브",
           "messageSetting": "all",
           "status": "online",

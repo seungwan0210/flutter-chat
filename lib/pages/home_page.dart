@@ -24,7 +24,7 @@ class _HomePageState extends State<HomePage> {
 
   List<String> ratingOptions = ["전체"];
   String _messageSetting = "ALL";
-  String _rank = "브론즈"; // 등급 추가
+  String _rank = "브론즈";
 
   @override
   void initState() {
@@ -37,16 +37,12 @@ class _HomePageState extends State<HomePage> {
   /// Firestore에서 로그인한 사용자 정보 실시간 감지
   void _listenToCurrentUser() {
     String currentUserId = auth.currentUser!.uid;
-    FirebaseFirestore.instance
-        .collection("users")
-        .doc(currentUserId)
-        .snapshots()
-        .listen((userDoc) {
+    FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots().listen((userDoc) {
       if (userDoc.exists) {
         setState(() {
           currentUserData = userDoc.data() as Map<String, dynamic>;
           _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
-          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0); // 등급 계산
+          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0);
         });
       }
     }, onError: (e) {
@@ -144,6 +140,8 @@ class _HomePageState extends State<HomePage> {
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
     String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
+    List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
+    String mainProfileImage = currentUserData!["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
     return GestureDetector(
       onTap: () {
@@ -153,7 +151,7 @@ class _HomePageState extends State<HomePage> {
             builder: (context) => ProfileDetailPage(
               userId: auth.currentUser!.uid,
               nickname: nickname,
-              profileImage: _firestoreService.sanitizeProfileImage(currentUserData!["profileImage"] ?? "") ?? "",
+              profileImages: profileImages, // 객체 리스트 전달
               isCurrentUser: true,
             ),
           ),
@@ -163,13 +161,13 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            _buildProfileImage(_firestoreService.sanitizeProfileImage(currentUserData!["profileImage"] ?? "") ?? "", isOnline),
+            _buildProfileImage(mainProfileImage, profileImages, isOnline),
             const SizedBox(width: 15),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(nickname, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                Text("등급: $_rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)), // 등급 위치 조정
+                Text("등급: $_rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
                 Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                 Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                 Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
@@ -215,15 +213,17 @@ class _HomePageState extends State<HomePage> {
         : "전체 허용";
     int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
     int totalViews = userData.containsKey("totalViews") ? userData["totalViews"] ?? 0 : 0;
-    String rank = _calculateRank(totalViews); // 등급 계산
+    String rank = _calculateRank(totalViews);
+    List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+    String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
     return ListTile(
-      leading: _buildProfileImage(_firestoreService.sanitizeProfileImage(userData["profileImage"] ?? "") ?? "", isOnline),
+      leading: _buildProfileImage(mainProfileImage, profileImages, isOnline),
       title: Text(userData["nickname"] ?? "알 수 없는 사용자", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("등급: $rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)), // 등급 위치 조정
+          Text("등급: $rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
           Text("홈샵: ${userData["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
           Text("${userData["dartBoard"] ?? "없음"} | 레이팅: $rating", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
           Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
@@ -236,7 +236,7 @@ class _HomePageState extends State<HomePage> {
             builder: (context) => ProfileDetailPage(
               userId: user.id,
               nickname: userData["nickname"] ?? "알 수 없음",
-              profileImage: _firestoreService.sanitizeProfileImage(userData["profileImage"] ?? "") ?? "",
+              profileImages: profileImages, // 객체 리스트 전달
               isCurrentUser: user.id == currentUserId,
             ),
           ),
@@ -350,18 +350,29 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 프로필 이미지 (이미지 로드 오류 처리 강화)
-  Widget _buildProfileImage(String profileImage, bool isOnline) {
-    String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(profileImage) ?? "";
+  /// 프로필 이미지 (이미지 리스트 지원)
+  Widget _buildProfileImage(String mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline) {
     return Stack(
       children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
-          foregroundImage: sanitizedProfileImage.isNotEmpty && !Uri.tryParse(sanitizedProfileImage)!.hasAbsolutePath
-              ? const AssetImage("assets/default_profile.png") as ImageProvider
-              : null,
-          child: sanitizedProfileImage.isEmpty ? const Icon(Icons.person, size: 28) : null,
+        GestureDetector(
+          onTap: () {
+            if (profileImages.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FullScreenImagePage(
+                    imageUrls: profileImages.map((img) => img['url'] as String).toList(),
+                    initialIndex: profileImages.indexWhere((img) => img['url'] == mainProfileImage),
+                  ),
+                ),
+              );
+            }
+          },
+          child: CircleAvatar(
+            radius: 28,
+            backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+            child: mainProfileImage.isEmpty ? const Icon(Icons.person, size: 28) : null,
+          ),
         ),
         Positioned(
           bottom: 0,
@@ -392,6 +403,49 @@ class _HomePageState extends State<HomePage> {
       ),
       dropdownColor: Theme.of(context).cardColor,
       style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+    );
+  }
+}
+
+// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
+class FullScreenImagePage extends StatelessWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImagePage({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        itemCount: imageUrls.length,
+        controller: PageController(initialPage: initialIndex),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Center(
+              child: Image.network(
+                imageUrls[index],
+                fit: BoxFit.contain,
+                height: double.infinity,
+                width: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error, color: Colors.white));
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

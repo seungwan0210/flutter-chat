@@ -8,9 +8,10 @@ import 'package:dartschat/pages/settings/rating_page.dart';
 import 'package:dartschat/pages/settings/message_setting_page.dart';
 import 'package:dartschat/pages/settings/friend_management_page.dart';
 import 'package:dartschat/pages/settings/blocked_users_page.dart';
-import 'package:dartschat/pages/settings/LogoutDialog.dart'; // 파일 이름 확인
+import 'package:dartschat/pages/settings/LogoutDialog.dart';
 import 'package:dartschat/pages/settings/nickname_edit_page.dart';
 import 'package:dartschat/pages/settings/homeshop_page.dart';
+import 'package:dartschat/pages/settings/profile_image_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -27,33 +28,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String _nickname = "닉네임 없음";
   String _homeShop = "설정 안됨";
-  String _profileImageUrl = "";
+  List<Map<String, dynamic>> _profileImages = [];
+  String _mainProfileImage = "";
   String _dartBoard = "다트라이브";
   int _rating = 1;
   String _messageSetting = "전체 허용";
-
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
-      try {
-        String fileName = 'profile_images/${_auth.currentUser!.uid}.jpg';
-        Reference storageRef = _storage.ref().child(fileName);
-        UploadTask uploadTask = storageRef.putData(await image.readAsBytes());
-        TaskSnapshot snapshot = await uploadTask;
-        String downloadUrl = await snapshot.ref.getDownloadURL();
-
-        setState(() {
-          _profileImageUrl = downloadUrl;
-        });
-        await _firestoreService.updateUserData({"profileImage": _profileImageUrl});
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("이미지 업로드 실패: $e")),
-        );
-      }
-    }
-  }
 
   /// URL 유효성 검사
   bool _isValidImageUrl(String? url) {
@@ -107,13 +86,8 @@ class _ProfilePageState extends State<ProfilePage> {
           _dartBoard = userData["dartBoard"] ?? "다트라이브";
           _rating = userData["rating"] ?? 1;
           _messageSetting = userData["messageSetting"] ?? "전체 허용";
-
-          String? rawProfileImage = userData["profileImage"];
-          if (rawProfileImage != null && rawProfileImage.contains('via.placeholder.com')) {
-            _firestoreService.updateUserData({"profileImage": ""});
-            rawProfileImage = "";
-          }
-          _profileImageUrl = _firestoreService.sanitizeProfileImage(rawProfileImage ?? "") ?? "";
+          _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+          _mainProfileImage = userData["mainProfileImage"] ?? (_profileImages.isNotEmpty ? _profileImages.last['url'] : "");
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
@@ -134,10 +108,30 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 프로필 이미지 변경 (에러 핸들링 강화)
+  /// 프로필 이미지 표시 및 변경
   Widget _buildProfileImage() {
     return GestureDetector(
-      onTap: _pickImage,
+      onTap: () {
+        // 이미지를 클릭하면 ProfileImagePage로 이동
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileImagePage()),
+        );
+      },
+      onLongPress: () {
+        // 길게 누르면 FullScreenImagePage로 이동
+        if (_profileImages.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FullScreenImagePage(
+                imageUrls: _profileImages.map((img) => img['url'] as String).toList(),
+                initialIndex: _profileImages.indexWhere((img) => img['url'] == _mainProfileImage),
+              ),
+            ),
+          );
+        }
+      },
       child: Container(
         width: 140,
         height: 140,
@@ -146,9 +140,9 @@ class _ProfilePageState extends State<ProfilePage> {
           border: Border.all(color: Theme.of(context).primaryColor, width: 2),
         ),
         child: ClipOval(
-          child: _isValidImageUrl(_profileImageUrl)
+          child: _isValidImageUrl(_mainProfileImage)
               ? Image.network(
-            _profileImageUrl,
+            _mainProfileImage,
             width: 140,
             height: 140,
             fit: BoxFit.cover,
@@ -319,6 +313,49 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
+class FullScreenImagePage extends StatelessWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImagePage({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        itemCount: imageUrls.length,
+        controller: PageController(initialPage: initialIndex),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Center(
+              child: Image.network(
+                imageUrls[index],
+                fit: BoxFit.contain,
+                height: double.infinity,
+                width: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error, color: Colors.white));
+                },
+              ),
+            ),
+          );
+        },
       ),
     );
   }

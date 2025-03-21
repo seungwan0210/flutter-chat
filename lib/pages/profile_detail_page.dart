@@ -9,14 +9,14 @@ import 'profile_page.dart';
 class ProfileDetailPage extends StatefulWidget {
   final String userId;
   final String nickname;
-  final String profileImage;
+  final List<Map<String, dynamic>> profileImages; // 객체 리스트로 변경
   final bool isCurrentUser;
 
   const ProfileDetailPage({
     super.key,
     required this.userId,
     required this.nickname,
-    required this.profileImage,
+    required this.profileImages,
     required this.isCurrentUser,
   });
 
@@ -39,6 +39,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   String messageSetting = "전체 허용";
   String? _errorMessage;
   String _rank = "브론즈";
+  List<Map<String, dynamic>> _profileImages = []; // Firestore에서 가져온 최신 이미지 리스트
+  String _mainProfileImage = ""; // 대표 이미지
 
   @override
   void initState() {
@@ -184,6 +186,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               dailyViews = userData["todayViews"] ?? 0;
               messageSetting = userData["messageSetting"] ?? "전체 허용";
               _rank = _calculateRank(totalViews);
+              _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+              _mainProfileImage = userData["mainProfileImage"] ?? (_profileImages.isNotEmpty ? _profileImages.last['url'] : "");
             });
           }
         } else {
@@ -211,10 +215,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(widget.profileImage) ?? "";
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           "프로필 상세",
           style: TextStyle(
             color: Colors.white,
@@ -230,7 +233,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         child: Column(
           children: [
             // 상단 프로필 헤더
-            _buildProfileHeader(sanitizedProfileImage),
+            _buildProfileHeader(),
             const SizedBox(height: 16),
             // 통계 정보
             _buildProfileStats(),
@@ -255,7 +258,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   }
 
   /// 프로필 헤더
-  Widget _buildProfileHeader(String sanitizedProfileImage) {
+  Widget _buildProfileHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
@@ -268,14 +271,24 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       child: Column(
         children: [
           GestureDetector(
-            onTap: () => _showFullScreenImage(sanitizedProfileImage),
+            onTap: () {
+              if (_profileImages.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FullScreenImagePage(
+                      imageUrls: _profileImages.map((img) => img['url'] as String).toList(),
+                      initialIndex: _profileImages.indexWhere((img) => img['url'] == _mainProfileImage),
+                    ),
+                  ),
+                );
+              }
+            },
             child: CircleAvatar(
               radius: 60,
               backgroundColor: Colors.white,
-              backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
-              child: sanitizedProfileImage.isEmpty || (Uri.tryParse(sanitizedProfileImage)?.hasAbsolutePath != true)
-                  ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                  : null,
+              backgroundImage: _mainProfileImage.isNotEmpty ? NetworkImage(_mainProfileImage) : null,
+              child: _mainProfileImage.isEmpty ? const Icon(Icons.person, size: 60, color: Colors.grey) : null,
             ),
           ),
           const SizedBox(height: 12),
@@ -489,7 +502,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                     builder: (context) => ChatPage(
                       chatRoomId: chatRoomId,
                       chatPartnerName: widget.nickname,
-                      chatPartnerImage: _firestoreService.sanitizeProfileImage(widget.profileImage) ?? "",
+                      chatPartnerImage: _mainProfileImage, // 대표 이미지 사용
                       receiverId: receiverId,
                       receiverName: widget.nickname,
                     ),
@@ -631,43 +644,47 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       }
     }
   }
+}
 
-  /// 풀스크린 이미지 확대 다이얼로그
-  void _showFullScreenImage(String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.black,
-          child: Stack(
-            children: [
-              Center(
-                child: imageUrl.isNotEmpty
-                    ? Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    "assets/default_profile.png",
-                    fit: BoxFit.contain,
-                  ),
-                )
-                    : Image.asset(
-                  "assets/default_profile.png",
-                  fit: BoxFit.contain,
-                ),
+// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
+class FullScreenImagePage extends StatelessWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImagePage({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        itemCount: imageUrls.length,
+        controller: PageController(initialPage: initialIndex),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Center(
+              child: Image.network(
+                imageUrls[index],
+                fit: BoxFit.contain,
+                height: double.infinity,
+                width: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error, color: Colors.white));
+                },
               ),
-              Positioned(
-                top: 20,
-                right: 20,
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }

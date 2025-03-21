@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firestore_service.dart';
 
 class FriendManagementPage extends StatefulWidget {
@@ -12,7 +11,6 @@ class FriendManagementPage extends StatefulWidget {
 
 class _FriendManagementPageState extends State<FriendManagementPage> {
   final FirestoreService _firestoreService = FirestoreService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Firestore에서 친구 목록 실시간 로드
   Stream<List<Map<String, dynamic>>> listenToFriends() {
@@ -85,48 +83,64 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
             itemCount: friends.length,
             itemBuilder: (context, index) {
               final friend = friends[index];
-              String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(friend["profileImage"] ?? "") ?? "";
-              String nickname = friend["nickname"] ?? "알 수 없는 사용자";
               String userId = friend["userId"] ?? "ID 없음";
+              String nickname = friend["nickname"] ?? "알 수 없는 사용자";
 
-              return Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 5,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                color: Theme.of(context).cardColor,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(12),
-                  leading: CircleAvatar(
-                    radius: 28,
-                    backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
-                    child: sanitizedProfileImage.isEmpty || sanitizedProfileImage.isNotEmpty && !Uri.tryParse(sanitizedProfileImage)!.hasAbsolutePath
-                        ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color)
-                        : null,
-                    onBackgroundImageError: sanitizedProfileImage.isNotEmpty
-                        ? (exception, stackTrace) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("이미지 로드 오류: $exception")),
-                      );
-                      return null;
-                    }
-                        : null,
-                  ),
-                  title: Text(
-                    nickname,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
+              // Firestore에서 최신 사용자 데이터 가져오기
+              return StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance.collection("users").doc(userId).snapshots(),
+                builder: (context, userSnapshot) {
+                  if (!userSnapshot.hasData) return const ListTile(title: Text("로딩 중..."));
+                  if (userSnapshot.hasError) return const ListTile(title: Text("정보 로드 오류"));
+                  if (!userSnapshot.data!.exists) return const ListTile(title: Text("사용자 데이터 없음"));
+
+                  var userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                  if (userData == null) return const ListTile(title: Text("사용자 데이터 없음"));
+
+                  List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+                  String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
+                  nickname = userData["nickname"] ?? "알 수 없는 사용자";
+
+                  return Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 5,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    color: Theme.of(context).cardColor,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(12),
+                      leading: CircleAvatar(
+                        radius: 28,
+                        backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+                        child: mainProfileImage.isEmpty
+                            ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color)
+                            : null,
+                        onBackgroundImageError: mainProfileImage.isNotEmpty
+                            ? (exception, stackTrace) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("이미지 로드 오류: $exception")),
+                          );
+                          return null;
+                        }
+                            : null,
+                      ),
+                      title: Text(
+                        nickname,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                      subtitle: Text(
+                        "@$userId",
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.remove_circle, color: Theme.of(context).colorScheme.error),
+                        onPressed: () => removeFriend(userId),
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    "@$userId",
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(Icons.remove_circle, color: Theme.of(context).colorScheme.error),
-                    onPressed: () => removeFriend(friend["userId"]),
-                  ),
-                ),
+                  );
+                },
               );
             },
           );

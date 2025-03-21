@@ -75,9 +75,10 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             itemBuilder: (context, index) {
               final user = blockedUsers[index];
-              String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(user["profileImage"] ?? "");
+              List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(user["profileImages"] ?? []);
+              String mainProfileImage = user["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
               String nickname = user["nickname"] ?? "알 수 없는 사용자";
-              String userId = user["userId"] ?? "ID 없음";
+              String userId = user["blockedUserId"] ?? "ID 없음";
 
               return Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -88,12 +89,17 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
                   contentPadding: const EdgeInsets.all(12),
                   leading: CircleAvatar(
                     radius: 28,
-                    backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
-                    foregroundImage: sanitizedProfileImage.isNotEmpty && !Uri.tryParse(sanitizedProfileImage)!.hasAbsolutePath
-                        ? const AssetImage("assets/default_profile.png") as ImageProvider
-                        : null,
-                    child: sanitizedProfileImage.isEmpty
+                    backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+                    child: mainProfileImage.isEmpty
                         ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color)
+                        : null,
+                    onBackgroundImageError: mainProfileImage.isNotEmpty
+                        ? (exception, stackTrace) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("이미지 로드 오류: $exception")),
+                      );
+                      return null;
+                    }
                         : null,
                   ),
                   title: Text(
@@ -109,7 +115,7 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
                   ),
                   trailing: IconButton(
                     icon: Icon(Icons.block, color: Theme.of(context).colorScheme.error),
-                    onPressed: () => _unblockUser(user["userId"]),
+                    onPressed: () => _unblockUser(user["blockedUserId"]),
                   ),
                 ),
               );

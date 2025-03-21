@@ -82,15 +82,10 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
               itemCount: _searchResults.length,
               itemBuilder: (context, index) {
                 var user = _searchResults[index];
-                String sanitizedProfileImage = _firestoreService.sanitizeProfileImage(user["profileImage"] ?? "") ?? "";
+                List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(user["profileImages"] ?? []);
+                String mainProfileImage = user["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: sanitizedProfileImage.isNotEmpty ? NetworkImage(sanitizedProfileImage) : null,
-                    foregroundImage: sanitizedProfileImage.isNotEmpty && !Uri.tryParse(sanitizedProfileImage)!.hasAbsolutePath
-                        ? const AssetImage("assets/default_profile.png") as ImageProvider
-                        : null,
-                    child: sanitizedProfileImage.isEmpty ? const Icon(Icons.person) : null,
-                  ),
+                  leading: _buildProfileImage(mainProfileImage, profileImages),
                   title: Text(
                     user["nickname"] ?? "알 수 없음",
                     style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
@@ -102,7 +97,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                         builder: (context) => ProfileDetailPage(
                           userId: user["userId"] ?? "", // doc.id로 보장됨
                           nickname: user["nickname"] ?? "알 수 없음",
-                          profileImage: sanitizedProfileImage,
+                          profileImages: profileImages, // 객체 리스트 전달
                           isCurrentUser: false,
                         ),
                       ),
@@ -117,9 +112,75 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     );
   }
 
+  /// 프로필 이미지 (이미지 리스트 지원)
+  Widget _buildProfileImage(String mainProfileImage, List<Map<String, dynamic>> profileImages) {
+    return GestureDetector(
+      onTap: () {
+        if (profileImages.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FullScreenImagePage(
+                imageUrls: profileImages.map((img) => img['url'] as String).toList(),
+                initialIndex: profileImages.indexWhere((img) => img['url'] == mainProfileImage),
+              ),
+            ),
+          );
+        }
+      },
+      child: CircleAvatar(
+        backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+        child: mainProfileImage.isEmpty ? const Icon(Icons.person) : null,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
+class FullScreenImagePage extends StatelessWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImagePage({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        itemCount: imageUrls.length,
+        controller: PageController(initialPage: initialIndex),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Center(
+              child: Image.network(
+                imageUrls[index],
+                fit: BoxFit.contain,
+                height: double.infinity,
+                width: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error, color: Colors.white));
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

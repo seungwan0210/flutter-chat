@@ -92,7 +92,8 @@ class _ChatListPageState extends State<ChatListPage> {
 
                         var userData = userSnapshot.data!;
                         String otherUserName = userData["nickname"] ?? "알 수 없음";
-                        String profileImage = _firestoreService.sanitizeProfileImage(userData["profileImage"]) ?? "";
+                        List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+                        String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
                         // userData.data()를 안전하게 Map<String, dynamic>으로 변환 후 처리
                         String messageSetting = "모든 사람";
@@ -135,11 +136,8 @@ class _ChatListPageState extends State<ChatListPage> {
                             contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                             leading: CircleAvatar(
                               radius: 18,
-                              backgroundImage: profileImage.isNotEmpty ? NetworkImage(profileImage) : null,
-                              foregroundImage: profileImage.isNotEmpty && !Uri.tryParse(profileImage)!.hasAbsolutePath
-                                  ? const AssetImage("assets/default_profile.png") as ImageProvider
-                                  : null,
-                              child: profileImage.isEmpty
+                              backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+                              child: mainProfileImage.isEmpty
                                   ? Text(
                                 otherUserName.isNotEmpty ? otherUserName[0] : "U",
                                 style: TextStyle(color: Theme.of(context).primaryColor),
@@ -187,7 +185,7 @@ class _ChatListPageState extends State<ChatListPage> {
                                 MaterialPageRoute(
                                   builder: (context) => ChatPage(
                                     chatRoomId: chatRoom.id,
-                                    chatPartnerImage: profileImage,
+                                    chatPartnerImage: mainProfileImage, // 대표 이미지 사용
                                     chatPartnerName: otherUserName,
                                     receiverId: otherUserId,
                                     receiverName: otherUserName,

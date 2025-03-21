@@ -1,19 +1,166 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   FirebaseFirestore get firestore => _firestore;
   String? get currentUserId => _auth.currentUser?.uid;
 
-  /// 이미지 URL 유효성 검사 (via.placeholder.com 제외)
-  String sanitizeProfileImage(String? profileImage) { // ✅ private에서 public으로 변경
+  /// 단일 이미지 URL 유효성 검사 (via.placeholder.com 제외)
+  String sanitizeProfileImage(String? profileImage) {
     if (profileImage == null || profileImage.contains('via.placeholder.com') || Uri.tryParse(profileImage)?.hasAbsolutePath != true) {
       return "";
     }
     return profileImage;
+  }
+
+  /// 이미지 리스트 유효성 검사
+  List<Map<String, dynamic>> sanitizeProfileImages(List<dynamic>? profileImages) {
+    if (profileImages == null || profileImages.isEmpty) return [];
+    return profileImages
+        .map((item) {
+      if (item is Map<String, dynamic> && item.containsKey('url')) {
+        String url = sanitizeProfileImage(item['url'] as String?);
+        if (url.isNotEmpty) {
+          return {
+            'url': url,
+            'timestamp': item['timestamp'] ?? '',
+          };
+        }
+      }
+      return null;
+    })
+        .where((item) => item != null)
+        .cast<Map<String, dynamic>>()
+        .toList();
+  }
+
+  /// 첫 번째 프로필 이미지 가져오기 (단일 이미지 필드 호환성을 위해)
+  String getFirstProfileImage(List<Map<String, dynamic>> profileImages) {
+    return profileImages.isNotEmpty ? profileImages.first['url'] : "";
+  }
+
+  /// 프로필 이미지 업로드 및 Firestore에 추가
+  Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
+    try {
+      String userId = _auth.currentUser!.uid;
+      String fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      Reference storageRef = _storage.ref().child('users/$userId/$fileName');
+      UploadTask uploadTask = storageRef.putFile(imageFile);
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      // Firestore의 profileImages 리스트에 추가
+      DocumentReference userRef = _firestore.collection("users").doc(userId);
+      DocumentSnapshot userDoc = await userRef.get();
+      Map<String, dynamic>? userData = userDoc.data() as Map<String, dynamic>?;
+
+      List<Map<String, dynamic>> profileImages = userData != null && userData.containsKey('profileImages')
+          ? List<Map<String, dynamic>>.from(userData['profileImages'])
+          : [];
+
+      String timestamp = DateTime.now().toIso8601String();
+      profileImages.add({
+        'url': downloadUrl,
+        'timestamp': timestamp,
+      });
+
+      // profileImages와 mainProfileImage 업데이트
+      await userRef.update({
+        'profileImages': profileImages,
+        'mainProfileImage': downloadUrl, // 가장 최근 이미지를 대표 이미지로 설정
+      });
+
+      return {'url': downloadUrl, 'timestamp': timestamp};
+    } catch (e) {
+      print("❌ 프로필 이미지 업로드 중 오류 발생: $e");
+      throw Exception("프로필 이미지 업로드 실패: $e");
+    }
+  }
+
+  /// 프로필 이미지 삭제
+  Future<void> deleteProfileImage(String imageUrl) async {
+    try {
+      String userId = _auth.currentUser!.uid;
+      DocumentReference userRef = _firestore.collection("users").doc(userId);
+      DocumentSnapshot userDoc = await userRef.get();
+      Map<String, dynamic>? userData = userDoc.data() as Map<String, dynamic>?;
+
+      if (userData == null || !userData.containsKey('profileImages')) {
+        throw Exception("프로필 이미지가 존재하지 않습니다.");
+      }
+
+      List<Map<String, dynamic>> profileImages = List<Map<String, dynamic>>.from(userData['profileImages']);
+      profileImages.removeWhere((item) => item['url'] == imageUrl);
+
+      String? mainProfileImage = userData['mainProfileImage'];
+      if (mainProfileImage == imageUrl) {
+        // 대표 이미지가 삭제된 경우, 가장 최근 이미지를 대표 이미지로 설정
+        mainProfileImage = profileImages.isNotEmpty ? profileImages.last['url'] : null;
+      }
+
+      // Storage에서 이미지 삭제
+      await _storage.refFromURL(imageUrl).delete();
+
+      // Firestore 업데이트
+      await userRef.update({
+        'profileImages': profileImages,
+        'mainProfileImage': mainProfileImage,
+      });
+    } catch (e) {
+      print("❌ 프로필 이미지 삭제 중 오류 발생: $e");
+      throw Exception("프로필 이미지 삭제 실패: $e");
+    }
+  }
+
+  /// Firestore 데이터 마이그레이션: 기존 profileImages -> 새로운 형식
+  Future<void> migrateProfileImagesToNewFormat() async {
+    try {
+      QuerySnapshot usersSnapshot = await _firestore.collection("users").get();
+      for (var userDoc in usersSnapshot.docs) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        if (userData.containsKey('profileImages')) {
+          List<dynamic> oldProfileImages = userData['profileImages'];
+          if (oldProfileImages.isNotEmpty && oldProfileImages.first is String) {
+            // 기존 데이터가 문자열 리스트인 경우
+            List<Map<String, dynamic>> newProfileImages = oldProfileImages.map((url) {
+              return {
+                'url': url,
+                'timestamp': DateTime.now().toIso8601String(), // 임시 타임스탬프
+              };
+            }).toList();
+            await userDoc.reference.update({
+              'profileImages': newProfileImages,
+              'mainProfileImage': newProfileImages.last['url'],
+            });
+            print("✅ 사용자 ${userDoc.id}의 프로필 이미지 마이그레이션 완료");
+          }
+        }
+      }
+      print("✅ 모든 사용자 프로필 이미지 마이그레이션 완료");
+    } catch (e) {
+      print("❌ Firestore 데이터 마이그레이션 중 오류 발생: $e");
+      throw Exception("Firestore 데이터 마이그레이션 실패: $e");
+    }
+  }
+
+  /// 대표 이미지 설정
+  Future<void> setMainProfileImage(String imageUrl) async {
+    try {
+      String userId = _auth.currentUser!.uid;
+      DocumentReference userRef = _firestore.collection("users").doc(userId);
+      await userRef.update({
+        'mainProfileImage': imageUrl,
+      });
+    } catch (e) {
+      print("❌ 대표 이미지 설정 중 오류 발생: $e");
+      throw Exception("대표 이미지 설정 실패: $e");
+    }
   }
 
   Future<void> incrementProfileViews(String userId) async {
@@ -62,7 +209,7 @@ class FirestoreService {
     return blockDoc.exists;
   }
 
-  Future<void> toggleBlockUser(String targetUserId, String nickname, String profileImage) async {
+  Future<void> toggleBlockUser(String targetUserId, String nickname, List<Map<String, dynamic>> profileImages) async {
     String? currentUserId = this.currentUserId;
     if (currentUserId == null) return;
 
@@ -80,7 +227,7 @@ class FirestoreService {
       await blockRef.set({
         "blockedUserId": targetUserId,
         "nickname": nickname,
-        "profileImage": sanitizeProfileImage(profileImage),
+        "profileImages": profileImages, // 객체 리스트 전달
         "timestamp": FieldValue.serverTimestamp(),
       });
     }
@@ -100,7 +247,9 @@ class FirestoreService {
       if (userData == null) return null;
 
       userData["friendCount"] = userData.containsKey("friendCount") ? userData["friendCount"] : 0;
-      userData["rating"] = userData.containsKey("rating") ? userData["rating"] : 0; // 추가
+      userData["rating"] = userData.containsKey("rating") ? userData["rating"] : 0;
+      userData["profileImages"] = userData.containsKey("profileImages") ? userData["profileImages"] : [];
+      userData["mainProfileImage"] = userData.containsKey("mainProfileImage") ? userData["mainProfileImage"] : (userData["profileImages"].isNotEmpty ? userData["profileImages"].last['url'] : "");
       return userData;
     } catch (e) {
       print("❌ Firestore에서 유저 정보를 불러오는 중 오류 발생: $e");
@@ -129,7 +278,8 @@ class FirestoreService {
     if (userData == null) return;
 
     String nickname = userData["nickname"] ?? "알 수 없는 사용자";
-    String profileImage = sanitizeProfileImage(userData["profileImage"]);
+    List<Map<String, dynamic>> profileImages = sanitizeProfileImages(userData["profileImages"]);
+    String firstImage = getFirstProfileImage(profileImages);
 
     DocumentReference requestRef = _firestore
         .collection("users")
@@ -140,7 +290,7 @@ class FirestoreService {
     await requestRef.set({
       "fromUserId": currentUserId,
       "nickname": nickname,
-      "profileImage": profileImage,
+      "profileImages": profileImages, // 객체 리스트 전달
       "timestamp": FieldValue.serverTimestamp(),
     });
   }
@@ -278,7 +428,7 @@ class FirestoreService {
       return {
         "userId": doc.id,
         "nickname": data["nickname"] ?? "알 수 없는 사용자",
-        "profileImage": sanitizeProfileImage(data["profileImage"]),
+        "profileImages": data["profileImages"] ?? [],
       };
     }).toList());
   }

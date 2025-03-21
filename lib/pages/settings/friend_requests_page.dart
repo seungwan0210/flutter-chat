@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../profile_detail_page.dart'; // 경로 수정: lib/pages/ 디렉토리에 있다고 가정
 import '../../services/firestore_service.dart';
-import '../profile_detail_page.dart'; // ProfileDetailPage 임포트
 
 class FriendRequestsPage extends StatefulWidget {
   const FriendRequestsPage({super.key});
@@ -59,7 +59,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImage": ""}); // 롤백
+        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []}); // 롤백
       });
     }
   }
@@ -86,7 +86,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImage": ""}); // 롤백
+        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []}); // 롤백
       });
     }
   }
@@ -141,7 +141,8 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
               final request = friendRequests[index];
               String userId = request["userId"] ?? "";
               String nickname = request["nickname"] ?? "알 수 없는 사용자";
-              String profileImage = _firestoreService.sanitizeProfileImage(request["profileImage"] ?? "") ?? "";
+              List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(request["profileImages"] ?? []);
+              String mainProfileImage = request["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
               return Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -150,24 +151,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                 color: Theme.of(context).cardColor,
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(12),
-                  leading: CircleAvatar(
-                    radius: 28,
-                    backgroundImage: profileImage.isNotEmpty ? NetworkImage(profileImage) : null,
-                    foregroundImage: profileImage.isNotEmpty && !Uri.tryParse(profileImage)!.hasAbsolutePath
-                        ? const AssetImage("assets/default_profile.png") as ImageProvider
-                        : null,
-                    child: profileImage.isEmpty
-                        ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color)
-                        : null,
-                    onBackgroundImageError: profileImage.isNotEmpty
-                        ? (exception, stackTrace) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("이미지 로드 오류: $exception")),
-                      );
-                      return null;
-                    }
-                        : null,
-                  ),
+                  leading: _buildProfileImage(mainProfileImage, profileImages),
                   title: Text(
                     nickname,
                     style: TextStyle(
@@ -195,7 +179,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                         builder: (context) => ProfileDetailPage(
                           userId: userId,
                           nickname: nickname,
-                          profileImage: profileImage,
+                          profileImages: profileImages, // 객체 리스트 전달
                           isCurrentUser: false,
                         ),
                       ),
@@ -204,6 +188,81 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                 ),
               );
             },
+          );
+        },
+      ),
+    );
+  }
+
+  /// 프로필 이미지 (이미지 리스트 지원)
+  Widget _buildProfileImage(String mainProfileImage, List<Map<String, dynamic>> profileImages) {
+    return GestureDetector(
+      onTap: () {
+        if (profileImages.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FullScreenImagePage(
+                imageUrls: profileImages.map((img) => img['url'] as String).toList(),
+                initialIndex: profileImages.indexWhere((img) => img['url'] == mainProfileImage),
+              ),
+            ),
+          );
+        }
+      },
+      child: CircleAvatar(
+        radius: 28,
+        backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+        child: mainProfileImage.isEmpty ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color) : null,
+        onBackgroundImageError: mainProfileImage.isNotEmpty
+            ? (exception, stackTrace) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("이미지 로드 오류: $exception")),
+          );
+          return null;
+        }
+            : null,
+      ),
+    );
+  }
+}
+
+// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
+class FullScreenImagePage extends StatelessWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImagePage({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: PageView.builder(
+        itemCount: imageUrls.length,
+        controller: PageController(initialPage: initialIndex),
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Center(
+              child: Image.network(
+                imageUrls[index],
+                fit: BoxFit.contain,
+                height: double.infinity,
+                width: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error, color: Colors.white));
+                },
+              ),
+            ),
           );
         },
       ),

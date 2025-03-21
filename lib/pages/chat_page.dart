@@ -7,7 +7,7 @@ import '../../services/firestore_service.dart';
 class ChatPage extends StatefulWidget {
   final String chatRoomId;
   final String chatPartnerName;
-  final String chatPartnerImage;
+  final String chatPartnerImage; // 대표 이미지 (mainProfileImage)
   final String receiverId;
   final String receiverName;
 
@@ -214,10 +214,6 @@ class _ChatPageState extends State<ChatPage> {
               radius: 18,
               backgroundImage: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isNotEmpty
                   ? NetworkImage(_firestoreService.sanitizeProfileImage(widget.chatPartnerImage))
-                  : null,
-              foregroundImage: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isNotEmpty &&
-                  !Uri.tryParse(_firestoreService.sanitizeProfileImage(widget.chatPartnerImage))!.hasAbsolutePath
-                  ? const AssetImage("assets/default_profile.png") as ImageProvider
                   : null,
               child: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isEmpty
                   ? const Icon(Icons.person, color: Colors.grey)
