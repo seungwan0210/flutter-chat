@@ -146,6 +146,7 @@ class AuthCheck extends StatefulWidget {
 
 class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   final Logger _logger = Logger();
+  final FirestoreService _firestoreService = FirestoreService(); // FirestoreService 인스턴스 생성
 
   @override
   void initState() {
@@ -189,6 +190,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "createdAt": FieldValue.serverTimestamp(),
           "rating": 0,
           "friendCount": 0,
+          "isOfflineMode": false, // isOfflineMode 필드 추가, 기본값 false
         });
         _logger.i("✅ Firestore에 사용자 문서가 없어서 새로 생성함.");
       } else {
@@ -207,9 +209,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
-          "status": "online",
-        });
+        await _firestoreService.updateUserStatus(true); // FirestoreService의 updateUserStatus 호출
         _logger.i("✅ 사용자 상태를 온라인으로 설정함: ${user.uid}");
       } catch (e) {
         _logger.e("❌ 온라인 상태 업데이트 실패: $e");
@@ -222,9 +222,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
-          "status": "offline",
-        });
+        await _firestoreService.updateUserStatus(false); // FirestoreService의 updateUserStatus 호출
         _logger.i("✅ 사용자 상태를 오프라인으로 설정함: ${user.uid}");
       } catch (e) {
         _logger.e("❌ 오프라인 상태 업데이트 실패: $e");

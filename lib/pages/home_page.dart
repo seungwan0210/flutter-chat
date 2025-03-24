@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_detail_page.dart';
+import 'UserSearchPage.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,7 +18,6 @@ class _HomePageState extends State<HomePage> {
   final FirestoreService _firestoreService = FirestoreService();
   String selectedBoardFilter = "전체";
   String selectedRatingFilter = "전체";
-  String homeShopSearch = "";
   static const int MAX_RATING = 30;
 
   Map<String, dynamic>? currentUserData;
@@ -70,26 +71,38 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance.collection("users").snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Text(
+              return const Text(
                 "홈 (오류)",
-                style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+                style: TextStyle(color: Colors.white),
               );
             }
             int userCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
             return Text(
               "홈 ($userCount)",
-              style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+              style: const TextStyle(color: Colors.white),
             );
           },
         ),
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        backgroundColor: Colors.black,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UserSearchPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -97,35 +110,58 @@ class _HomePageState extends State<HomePage> {
           _buildProfileStats(),
           const SizedBox(height: 10),
           _buildMyProfile(),
+          const Divider(
+            thickness: 0.5,
+            color: Colors.grey,
+            indent: 16,
+            endIndent: 16,
+          ),
           const SizedBox(height: 10),
           _buildFilterAndSearch(),
+          const Divider(
+            thickness: 0.5,
+            color: Colors.grey,
+            indent: 16,
+            endIndent: 16,
+          ),
           const SizedBox(height: 10),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection("users").snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      "사용자 목록을 불러오는 중 오류가 발생했습니다.",
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  );
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _firestoreService.listenToBlockedUsers(),
+              builder: (context, blockedSnapshot) {
+                if (!blockedSnapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (blockedSnapshot.hasError) {
+                  return const Center(child: Text("차단 목록 로드 중 오류", style: TextStyle(color: Colors.redAccent)));
                 }
 
-                var users = snapshot.data!.docs.where((user) {
-                  if (user.id == auth.currentUser!.uid) return false;
-                  Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-                  String dartBoard = userData["dartBoard"] ?? "없음";
-                  int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
-                  String homeShop = userData["homeShop"] ?? "없음";
-                  return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
-                      (selectedRatingFilter == "전체" || rating.toString() == selectedRatingFilter) &&
-                      (homeShopSearch.isEmpty || homeShop.toLowerCase().contains(homeShopSearch.toLowerCase()));
-                }).toList();
+                var blockedIds = blockedSnapshot.data!.map((user) => user["blockedUserId"] as String).toList();
 
-                return _buildUserList(users);
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection("users").snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          "사용자 목록을 불러오는 중 오류가 발생했습니다.",
+                          style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        ),
+                      );
+                    }
+
+                    var users = snapshot.data!.docs.where((user) {
+                      if (user.id == auth.currentUser!.uid) return false;
+                      if (blockedIds.contains(user.id)) return false; // 차단된 유저 제외
+                      Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
+                      String dartBoard = userData["dartBoard"] ?? "없음";
+                      int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
+                      return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
+                          (selectedRatingFilter == "전체" || rating.toString() == selectedRatingFilter);
+                    }).toList();
+
+                    return _buildUserList(users);
+                  },
+                );
               },
             ),
           ),
@@ -141,7 +177,7 @@ class _HomePageState extends State<HomePage> {
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
     String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
-    String mainProfileImage = currentUserData!["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
+    String? mainProfileImage = currentUserData!["mainProfileImage"];
 
     return GestureDetector(
       onTap: () {
@@ -151,29 +187,62 @@ class _HomePageState extends State<HomePage> {
             builder: (context) => ProfileDetailPage(
               userId: auth.currentUser!.uid,
               nickname: nickname,
-              profileImages: profileImages, // 객체 리스트 전달
+              profileImages: profileImages,
               isCurrentUser: true,
             ),
           ),
         );
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            _buildProfileImage(mainProfileImage, profileImages, isOnline),
-            const SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(nickname, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                Text("등급: $_rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-                Text("홈샵: ${currentUserData!["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-                Text("${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-                Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
-              ],
-            ),
-          ],
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _buildProfileImage(mainProfileImage, profileImages, isOnline),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nickname,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    Text(
+                      "등급: $_rank",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                    Text(
+                      "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
+                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                    ),
+                    Text(
+                      "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
+                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                    ),
+                    Text(
+                      "메시지 설정: $messageSetting",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -184,6 +253,12 @@ class _HomePageState extends State<HomePage> {
     return ListView(
       children: [
         _buildUserSection("온라인 유저", users.where((user) => user["status"] == "online").toList()),
+        const Divider(
+          thickness: 0.5,
+          color: Colors.grey,
+          indent: 16,
+          endIndent: 16,
+        ),
         _buildUserSection("오프라인 유저", users.where((user) => user["status"] == "offline").toList()),
       ],
     );
@@ -197,7 +272,14 @@ class _HomePageState extends State<HomePage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+          ),
         ),
         ...users.map((user) => _buildUserTile(user)).toList(),
       ],
@@ -215,83 +297,91 @@ class _HomePageState extends State<HomePage> {
     int totalViews = userData.containsKey("totalViews") ? userData["totalViews"] ?? 0 : 0;
     String rank = _calculateRank(totalViews);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
-    String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
+    String? mainProfileImage = userData["mainProfileImage"];
 
-    return ListTile(
-      leading: _buildProfileImage(mainProfileImage, profileImages, isOnline),
-      title: Text(userData["nickname"] ?? "알 수 없는 사용자", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("등급: $rank", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-          Text("홈샵: ${userData["homeShop"] ?? "없음"}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-          Text("${userData["dartBoard"] ?? "없음"} | 레이팅: $rating", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
-          Text("메시지 설정: $messageSetting", style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
-        ],
-      ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProfileDetailPage(
-              userId: user.id,
-              nickname: userData["nickname"] ?? "알 수 없음",
-              profileImages: profileImages, // 객체 리스트 전달
-              isCurrentUser: user.id == currentUserId,
-            ),
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leading: _buildProfileImage(mainProfileImage, profileImages, isOnline),
+        title: Text(
+          userData["nickname"] ?? "알 수 없는 사용자",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
-        );
-      },
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "등급: $rank",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            Text(
+              "홈샵: ${userData["homeShop"] ?? "없음"}",
+              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+            ),
+            Text(
+              "${userData["dartBoard"] ?? "없음"} | 레이팅: $rating",
+              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+            ),
+            Text(
+              "메시지 설정: $messageSetting",
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+          ],
+        ),
+        onTap: () {
+          _firestoreService.incrementProfileViews(user.id);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfileDetailPage(
+                userId: user.id,
+                nickname: userData["nickname"] ?? "알 수 없음",
+                profileImages: profileImages,
+                isCurrentUser: user.id == currentUserId,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  /// 필터 & 검색 UI
+  /// 필터 UI (홈샵 검색 제거)
   Widget _buildFilterAndSearch() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Container(
-            child: Column(
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _dropdownFilter(
-                        selectedBoardFilter,
-                        ["전체", "다트라이브", "피닉스", "그란보드", "홈보드"],
-                            (newValue) => setState(() => selectedBoardFilter = newValue!),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _dropdownFilter(
-                        selectedRatingFilter,
-                        ratingOptions,
-                            (newValue) => setState(() => selectedRatingFilter = newValue!),
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: _dropdownFilter(
+                    selectedBoardFilter,
+                    ["전체", "다트라이브", "피닉스", "그란보드", "홈보드"],
+                        (newValue) => setState(() => selectedBoardFilter = newValue!),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                SizedBox(
-                  height: 36,
-                  child: TextField(
-                    onChanged: (value) => setState(() => homeShopSearch = value.trim()),
-                    decoration: InputDecoration(
-                      labelText: "홈샵 검색",
-                      labelStyle: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color),
-                      prefixIcon: Icon(Icons.search, size: 18, color: Theme.of(context).iconTheme.color),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Theme.of(context).primaryColor),
-                      ),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                    ),
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _dropdownFilter(
+                    selectedRatingFilter,
+                    ratingOptions,
+                        (newValue) => setState(() => selectedRatingFilter = newValue!),
                   ),
                 ),
               ],
@@ -307,8 +397,14 @@ class _HomePageState extends State<HomePage> {
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
-        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-        Text(title, style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color)),
+        Text(
+          value,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
+        ),
+        Text(
+          title,
+          style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodyMedium?.color),
+        ),
       ],
     );
   }
@@ -330,20 +426,20 @@ class _HomePageState extends State<HomePage> {
 
         var stats = snapshot.data!.data() as Map<String, dynamic>;
 
-        return Container(
-          padding: const EdgeInsets.all(8),
+        return Card(
           margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
-              _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
-              _buildStatItem("Rank", _rank),
-            ],
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
+                _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
+                _buildStatItem("Rank", _rank),
+              ],
+            ),
           ),
         );
       },
@@ -351,27 +447,38 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// 프로필 이미지 (이미지 리스트 지원)
-  Widget _buildProfileImage(String mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline) {
+  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline) {
     return Stack(
       children: [
         GestureDetector(
           onTap: () {
-            if (profileImages.isNotEmpty) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FullScreenImagePage(
-                    imageUrls: profileImages.map((img) => img['url'] as String).toList(),
-                    initialIndex: profileImages.indexWhere((img) => img['url'] == mainProfileImage),
-                  ),
+            List<String> validImageUrls = profileImages
+                .map((img) => img['url'] as String?)
+                .where((url) => url != null && url.isNotEmpty)
+                .cast<String>()
+                .toList();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FullScreenImagePage(
+                  imageUrls: validImageUrls,
+                  initialIndex: mainProfileImage != null && validImageUrls.contains(mainProfileImage)
+                      ? validImageUrls.indexOf(mainProfileImage)
+                      : 0,
                 ),
-              );
-            }
+              ),
+            );
           },
           child: CircleAvatar(
             radius: 28,
-            backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
-            child: mainProfileImage.isEmpty ? const Icon(Icons.person, size: 28) : null,
+            backgroundImage: mainProfileImage != null && mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+            child: mainProfileImage == null || mainProfileImage.isEmpty
+                ? Icon(
+              Icons.person,
+              size: 56,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            )
+                : null,
           ),
         ),
         Positioned(
@@ -403,49 +510,6 @@ class _HomePageState extends State<HomePage> {
       ),
       dropdownColor: Theme.of(context).cardColor,
       style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-    );
-  }
-}
-
-// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
-class FullScreenImagePage extends StatelessWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const FullScreenImagePage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        itemCount: imageUrls.length,
-        controller: PageController(initialPage: initialIndex),
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Center(
-              child: Image.network(
-                imageUrls[index],
-                fit: BoxFit.contain,
-                height: double.infinity,
-                width: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.error, color: Colors.white));
-                },
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }

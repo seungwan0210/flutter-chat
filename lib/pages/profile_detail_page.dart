@@ -5,11 +5,12 @@ import '../services/firestore_service.dart';
 import 'chat_page.dart';
 import 'play_summary_page.dart';
 import 'profile_page.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final String userId;
   final String nickname;
-  final List<Map<String, dynamic>> profileImages; // 객체 리스트로 변경
+  final List<Map<String, dynamic>> profileImages;
   final bool isCurrentUser;
 
   const ProfileDetailPage({
@@ -28,7 +29,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  bool _isBlocked = false;
+  bool _isBlocked = false; // 클래스 상태 변수로 선언
   bool _isFriend = false;
   bool _isRequestPending = false;
   int _rating = 0;
@@ -39,13 +40,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   String messageSetting = "전체 허용";
   String? _errorMessage;
   String _rank = "브론즈";
-  List<Map<String, dynamic>> _profileImages = []; // Firestore에서 가져온 최신 이미지 리스트
-  String _mainProfileImage = ""; // 대표 이미지
+  List<Map<String, dynamic>> _profileImages = [];
+  String? _mainProfileImage;
 
   @override
   void initState() {
     super.initState();
-    _checkIfBlocked();
     _checkFriendStatus();
     _loadUserInfo();
 
@@ -66,22 +66,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     if (totalViews >= 100) return "골드";
     if (totalViews >= 50) return "실버";
     return "브론즈";
-  }
-
-  /// 차단 여부 확인
-  Future<void> _checkIfBlocked() async {
-    try {
-      _isBlocked = await _firestoreService.isUserBlocked(widget.userId);
-      if (mounted) {
-        setState(() {});
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "차단 여부 확인 중 오류: $e";
-        });
-      }
-    }
   }
 
   /// 친구 상태 및 요청 상태 확인
@@ -187,7 +171,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               messageSetting = userData["messageSetting"] ?? "전체 허용";
               _rank = _calculateRank(totalViews);
               _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
-              _mainProfileImage = userData["mainProfileImage"] ?? (_profileImages.isNotEmpty ? _profileImages.last['url'] : "");
+              _mainProfileImage = userData["mainProfileImage"];
             });
           }
         } else {
@@ -213,9 +197,24 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
+  /// 차단/차단 해제 토글
+  Future<void> _toggleBlockUser() async {
+    try {
+      await _firestoreService.toggleBlockUser(widget.userId, widget.nickname, widget.profileImages);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isBlocked ? "차단이 해제되었습니다." : "사용자가 차단되었습니다.")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("차단/차단 해제 중 오류가 발생했습니다: $e")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
           "프로필 상세",
@@ -225,23 +224,19 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 상단 프로필 헤더
             _buildProfileHeader(),
             const SizedBox(height: 16),
-            // 통계 정보
             _buildProfileStats(),
             const SizedBox(height: 16),
-            // 프로필 정보
             _buildProfileInfo(),
             const SizedBox(height: 16),
-            // 액션 버튼
             _buildActionButtons(),
             if (_errorMessage != null)
               Padding(
@@ -260,7 +255,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   /// 프로필 헤더
   Widget _buildProfileHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.only(top: 80, bottom: 20),
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.black, Colors.grey.shade900],
@@ -272,23 +268,40 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         children: [
           GestureDetector(
             onTap: () {
-              if (_profileImages.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FullScreenImagePage(
-                      imageUrls: _profileImages.map((img) => img['url'] as String).toList(),
-                      initialIndex: _profileImages.indexWhere((img) => img['url'] == _mainProfileImage),
-                    ),
+              List<String> validImageUrls = _profileImages
+                  .map((img) => img['url'] as String?)
+                  .where((url) => url != null && url.isNotEmpty)
+                  .cast<String>()
+                  .toList();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FullScreenImagePage(
+                    imageUrls: validImageUrls,
+                    initialIndex: _mainProfileImage != null && validImageUrls.contains(_mainProfileImage)
+                        ? validImageUrls.indexOf(_mainProfileImage!)
+                        : 0,
                   ),
-                );
-              }
+                ),
+              );
             },
-            child: CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.white,
-              backgroundImage: _mainProfileImage.isNotEmpty ? NetworkImage(_mainProfileImage) : null,
-              child: _mainProfileImage.isEmpty ? const Icon(Icons.person, size: 60, color: Colors.grey) : null,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.black,
+                backgroundImage: _mainProfileImage != null && _mainProfileImage!.isNotEmpty ? NetworkImage(_mainProfileImage!) : null,
+                child: _mainProfileImage == null || _mainProfileImage!.isEmpty
+                    ? Icon(
+                  Icons.person,
+                  size: 60,
+                  color: Colors.grey,
+                )
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -502,7 +515,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                     builder: (context) => ChatPage(
                       chatRoomId: chatRoomId,
                       chatPartnerName: widget.nickname,
-                      chatPartnerImage: _mainProfileImage, // 대표 이미지 사용
+                      chatPartnerImage: _mainProfileImage ?? "",
                       receiverId: receiverId,
                       receiverName: widget.nickname,
                     ),
@@ -511,7 +524,29 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               },
             ),
             const SizedBox(height: 12),
-            _buildFriendActionButton(),
+            StreamBuilder<bool>(
+              stream: _firestoreService.listenToBlockedStatus(widget.userId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return const Text(
+                    "차단 상태 로드 중 오류",
+                    style: TextStyle(color: Colors.redAccent),
+                  );
+                }
+
+                _isBlocked = snapshot.data ?? false; // 클래스 상태 변수 갱신
+                return Column(
+                  children: [
+                    _buildFriendActionButton(),
+                    const SizedBox(height: 12),
+                    _buildBlockActionButton(),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       );
@@ -563,6 +598,18 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         onPressed: _sendFriendRequest,
       );
     }
+  }
+
+  /// 차단/차단 해제 버튼
+  Widget _buildBlockActionButton() {
+    return _buildActionButton(
+      icon: _isBlocked ? Icons.block : Icons.block_outlined,
+      label: _isBlocked ? "차단 해제" : "차단",
+      gradient: _isBlocked
+          ? const LinearGradient(colors: [Colors.green, Colors.lightGreen])
+          : const LinearGradient(colors: [Colors.redAccent, Colors.red]),
+      onPressed: _toggleBlockUser,
+    );
   }
 
   /// 액션 버튼 스타일링
@@ -643,48 +690,5 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         );
       }
     }
-  }
-}
-
-// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
-class FullScreenImagePage extends StatelessWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const FullScreenImagePage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        itemCount: imageUrls.length,
-        controller: PageController(initialPage: initialIndex),
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Center(
-              child: Image.network(
-                imageUrls[index],
-                fit: BoxFit.contain,
-                height: double.infinity,
-                width: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.error, color: Colors.white));
-                },
-              ),
-            ),
-          );
-        },
-      ),
-    );
   }
 }

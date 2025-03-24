@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart';
-import 'friends_page.dart';
-import 'chat_list_page.dart';
-import 'profile_page.dart';
-import 'more_page.dart';
+import 'package:dartschat/pages/home_page.dart';
+import 'package:dartschat/pages/friends_page.dart';
+import 'package:dartschat/pages/chat_list_page.dart';
+import 'package:dartschat/pages/profile_page.dart';
+import 'package:dartschat/pages/more_page.dart';
 
 class MainPage extends StatefulWidget {
   final int initialIndex;

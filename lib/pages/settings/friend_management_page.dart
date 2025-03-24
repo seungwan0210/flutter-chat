@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class FriendManagementPage extends StatefulWidget {
   const FriendManagementPage({super.key});
@@ -39,16 +40,16 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           "친구 관리",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        backgroundColor: Colors.black,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: listenToFriends(),
@@ -57,20 +58,20 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
+            return const Center(
               child: Text(
                 "친구 목록을 불러오는 중 오류가 발생했습니다.",
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(color: Colors.redAccent),
               ),
             );
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
+            return const Center(
               child: Text(
                 "아직 친구가 없습니다. 친구를 추가해보세요!",
                 style: TextStyle(
                   fontSize: 16,
-                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                  color: Colors.black54,
                 ),
               ),
             );
@@ -83,10 +84,10 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
             itemCount: friends.length,
             itemBuilder: (context, index) {
               final friend = friends[index];
-              String userId = friend["userId"] ?? "ID 없음";
-              String nickname = friend["nickname"] ?? "알 수 없는 사용자";
+              String userId = friend["userId"] ?? "";
+              if (userId.isEmpty) return const SizedBox();
 
-              // Firestore에서 최신 사용자 데이터 가져오기
+              // Firestore에서 최신 사용자 데이터 가져오기 (Stream 사용)
               return StreamBuilder<DocumentSnapshot>(
                 stream: FirebaseFirestore.instance.collection("users").doc(userId).snapshots(),
                 builder: (context, userSnapshot) {
@@ -97,45 +98,70 @@ class _FriendManagementPageState extends State<FriendManagementPage> {
                   var userData = userSnapshot.data!.data() as Map<String, dynamic>?;
                   if (userData == null) return const ListTile(title: Text("사용자 데이터 없음"));
 
-                  List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
-                  String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
-                  nickname = userData["nickname"] ?? "알 수 없는 사용자";
+                  friend["nickname"] = userData["nickname"] ?? "알 수 없는 사용자";
+                  friend["profileImages"] = userData["profileImages"] ?? [];
+                  friend["mainProfileImage"] = userData["mainProfileImage"];
 
-                  return Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 5,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    color: Theme.of(context).cardColor,
+                  List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(friend["profileImages"] ?? []);
+                  String mainProfileImage = friend["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
+                  String nickname = friend["nickname"] ?? "알 수 없는 사용자";
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      leading: CircleAvatar(
-                        radius: 28,
-                        backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
-                        child: mainProfileImage.isEmpty
-                            ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color)
-                            : null,
-                        onBackgroundImageError: mainProfileImage.isNotEmpty
-                            ? (exception, stackTrace) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("이미지 로드 오류: $exception")),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      leading: GestureDetector(
+                        onTap: () {
+                          List<String> validImageUrls = profileImages
+                              .map((img) => img['url'] as String?)
+                              .where((url) => url != null && url.isNotEmpty)
+                              .cast<String>()
+                              .toList();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FullScreenImagePage(
+                                imageUrls: validImageUrls,
+                                initialIndex: mainProfileImage != null && validImageUrls.contains(mainProfileImage)
+                                    ? validImageUrls.indexOf(mainProfileImage)
+                                    : 0,
+                              ),
+                            ),
                           );
-                          return null;
-                        }
-                            : null,
+                        },
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+                          child: mainProfileImage.isEmpty
+                              ? Icon(
+                            Icons.person,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                            size: 40,
+                          )
+                              : null,
+                          onBackgroundImageError: mainProfileImage.isNotEmpty
+                              ? (exception, stackTrace) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("이미지 로드 오류: $exception")),
+                            );
+                            return null;
+                          }
+                              : null,
+                        ),
                       ),
                       title: Text(
                         nickname,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                           color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
-                      subtitle: Text(
-                        "@$userId",
-                        style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                      ),
                       trailing: IconButton(
-                        icon: Icon(Icons.remove_circle, color: Theme.of(context).colorScheme.error),
+                        icon: Icon(
+                          Icons.remove_circle,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                         onPressed: () => removeFriend(userId),
                       ),
                     ),

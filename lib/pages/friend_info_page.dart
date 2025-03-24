@@ -3,11 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_page.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:dartschat/pages/settings/blocked_users_page.dart';
 
 class FriendInfoPage extends StatefulWidget {
   final String receiverId;
   final String receiverName;
-  final List<Map<String, dynamic>> receiverImages; // 객체 리스트로 변경
+  final List<Map<String, dynamic>> receiverImages;
 
   const FriendInfoPage({
     super.key,
@@ -31,14 +33,21 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   int totalViews = 0;
   int dailyViews = 0;
   String _rank = "브론즈";
-  List<Map<String, dynamic>> _profileImages = []; // Firestore에서 가져온 최신 이미지 리스트
-  String _mainProfileImage = ""; // 대표 이미지
+  List<Map<String, dynamic>> _profileImages = [];
+  String? _mainProfileImage;
+  bool _isBlocked = false;
 
   @override
   void initState() {
     super.initState();
     _loadFriendInfo();
     _checkFavoriteStatus();
+    // 차단 상태 확인
+    _firestoreService.listenToBlockedStatus(widget.receiverId).listen((isBlocked) {
+      setState(() {
+        _isBlocked = isBlocked;
+      });
+    });
   }
 
   Future<void> _loadFriendInfo() async {
@@ -52,7 +61,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           dailyViews = _friendData!["todayViews"] ?? 0;
           _rank = _calculateRank(totalViews);
           _profileImages = _firestoreService.sanitizeProfileImages(_friendData!["profileImages"] ?? []);
-          _mainProfileImage = _friendData!["mainProfileImage"] ?? (_profileImages.isNotEmpty ? _profileImages.last['url'] : "");
+          _mainProfileImage = _friendData!["mainProfileImage"];
           _isLoading = false;
         });
       } else {
@@ -119,7 +128,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
         builder: (context) => ChatPage(
           chatRoomId: chatRoomId,
           chatPartnerName: widget.receiverName,
-          chatPartnerImage: _mainProfileImage, // 대표 이미지 사용
+          chatPartnerImage: _mainProfileImage ?? "",
           receiverId: widget.receiverId,
           receiverName: widget.receiverName,
         ),
@@ -134,69 +143,85 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   Future<void> _removeFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
-    try {
-      // 양쪽 유저의 friends 컬렉션에서 삭제
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("friends")
-          .doc(widget.receiverId)
-          .delete();
-      await _firestore
-          .collection("users")
-          .doc(widget.receiverId)
-          .collection("friends")
-          .doc(currentUserId)
-          .delete();
+    // 확인 다이얼로그 표시
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("친구 삭제"),
+        content: const Text("친구를 삭제하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("취소"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("삭제", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
 
-      // 즐겨찾기에서도 삭제
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("favorites")
-          .doc(widget.receiverId)
-          .delete();
+    if (confirm == true) {
+      try {
+        await _firestoreService.removeFriend(widget.receiverId);
+        await _firestore
+            .collection("users")
+            .doc(currentUserId)
+            .collection("favorites")
+            .doc(widget.receiverId)
+            .delete();
 
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+      }
     }
   }
 
   Future<void> _blockFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
-    try {
-      // 차단 목록에 추가
-      await _firestoreService.toggleBlockUser(widget.receiverId, widget.receiverName, _profileImages);
+    // 확인 다이얼로그 표시
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("사용자 차단"),
+        content: const Text("사용자를 차단하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("취소"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("차단", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
 
-      // 친구 목록에서 삭제
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("friends")
-          .doc(widget.receiverId)
-          .delete();
-      await _firestore
-          .collection("users")
-          .doc(widget.receiverId)
-          .collection("friends")
-          .doc(currentUserId)
-          .delete();
+    if (confirm == true) {
+      try {
+        await _firestoreService.toggleBlockUser(widget.receiverId, widget.receiverName, _profileImages);
+        await _firestoreService.removeFriend(widget.receiverId);
+        await _firestore
+            .collection("users")
+            .doc(currentUserId)
+            .collection("favorites")
+            .doc(widget.receiverId)
+            .delete();
 
-      // 즐겨찾기에서도 삭제
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("favorites")
-          .doc(widget.receiverId)
-          .delete();
-
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 차단되었습니다.")));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+        // 차단 후 BlockedUsersPage로 이동
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const BlockedUsersPage()),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("사용자가 차단되었습니다.")));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+      }
     }
   }
 
@@ -211,6 +236,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
           "친구 정보",
@@ -220,9 +246,18 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isBlocked ? Icons.block : Icons.block_outlined,
+              color: _isBlocked ? Colors.red : Colors.white,
+            ),
+            onPressed: _blockFriend,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -251,7 +286,8 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   /// 프로필 헤더
   Widget _buildProfileHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.only(top: 80, bottom: 20),
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.black, Colors.grey.shade900],
@@ -263,23 +299,40 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
         children: [
           GestureDetector(
             onTap: () {
-              if (_profileImages.isNotEmpty) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FullScreenImagePage(
-                      imageUrls: _profileImages.map((img) => img['url'] as String).toList(),
-                      initialIndex: _profileImages.indexWhere((img) => img['url'] == _mainProfileImage),
-                    ),
+              List<String> validImageUrls = _profileImages
+                  .map((img) => img['url'] as String?)
+                  .where((url) => url != null && url.isNotEmpty)
+                  .cast<String>()
+                  .toList();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FullScreenImagePage(
+                    imageUrls: validImageUrls,
+                    initialIndex: _mainProfileImage != null && validImageUrls.contains(_mainProfileImage)
+                        ? validImageUrls.indexOf(_mainProfileImage!)
+                        : 0,
                   ),
-                );
-              }
+                ),
+              );
             },
-            child: CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.white,
-              backgroundImage: _mainProfileImage.isNotEmpty ? NetworkImage(_mainProfileImage) : null,
-              child: _mainProfileImage.isEmpty ? const Icon(Icons.person, size: 60, color: Colors.grey) : null,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.black,
+                backgroundImage: _mainProfileImage != null && _mainProfileImage!.isNotEmpty ? NetworkImage(_mainProfileImage!) : null,
+                child: _mainProfileImage == null || _mainProfileImage!.isEmpty
+                    ? Icon(
+                  Icons.person,
+                  size: 60,
+                  color: Colors.grey,
+                )
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -459,49 +512,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-      ),
-    );
-  }
-}
-
-// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
-class FullScreenImagePage extends StatelessWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const FullScreenImagePage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        itemCount: imageUrls.length,
-        controller: PageController(initialPage: initialIndex),
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Center(
-              child: Image.network(
-                imageUrls[index],
-                fit: BoxFit.contain,
-                height: double.infinity,
-                width: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.error, color: Colors.white));
-                },
-              ),
-            ),
-          );
-        },
       ),
     );
   }

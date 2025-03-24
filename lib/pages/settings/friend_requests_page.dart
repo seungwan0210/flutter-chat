@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../profile_detail_page.dart'; // 경로 수정: lib/pages/ 디렉토리에 있다고 가정
+import '../profile_detail_page.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart'; // 최신 FullScreenImagePage 임포트
 
 class FriendRequestsPage extends StatefulWidget {
   const FriendRequestsPage({super.key});
@@ -59,7 +60,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []}); // 롤백
+        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []});
       });
     }
   }
@@ -86,7 +87,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []}); // 롤백
+        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []});
       });
     }
   }
@@ -94,177 +95,159 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           "친구 요청",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _firestoreService.listenToFriendRequests(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                "친구 요청 목록을 불러오는 중 오류가 발생했습니다.",
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            );
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Text(
-                "받은 친구 요청이 없습니다. 친구를 기다려보세요!",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(context).textTheme.bodyMedium?.color,
-                ),
-              ),
-            );
-          }
-
-          List<Map<String, dynamic>> friendRequests = snapshot.data!;
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            itemCount: friendRequests.length,
-            itemBuilder: (context, index) {
-              final request = friendRequests[index];
-              String userId = request["userId"] ?? "";
-              String nickname = request["nickname"] ?? "알 수 없는 사용자";
-              List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(request["profileImages"] ?? []);
-              String mainProfileImage = request["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
-
-              return Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 5,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                color: Theme.of(context).cardColor,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(12),
-                  leading: _buildProfileImage(mainProfileImage, profileImages),
-                  title: Text(
-                    nickname,
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
-                        onPressed: () => _acceptFriend(userId),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.cancel, color: Theme.of(context).colorScheme.error),
-                        onPressed: () => _declineFriend(userId),
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    // ProfileDetailPage로 이동
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ProfileDetailPage(
-                          userId: userId,
-                          nickname: nickname,
-                          profileImages: profileImages, // 객체 리스트 전달
-                          isCurrentUser: false,
-                        ),
-                      ),
-                    );
-                  },
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.black, Colors.grey.shade900],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _firestoreService.listenToFriendRequests(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return const Center(
+                child: Text(
+                  "친구 요청 목록을 불러오는 중 오류가 발생했습니다.",
+                  style: TextStyle(color: Colors.redAccent),
                 ),
               );
-            },
-          );
-        },
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(
+                child: Text(
+                  "받은 친구 요청이 없습니다. 친구를 기다려보세요!",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                  ),
+                ),
+              );
+            }
+
+            List<Map<String, dynamic>> friendRequests = snapshot.data!;
+
+            return ListView.builder(
+              padding: const EdgeInsets.only(top: 80, left: 16, right: 16, bottom: 10),
+              itemCount: friendRequests.length,
+              itemBuilder: (context, index) {
+                final request = friendRequests[index];
+                String userId = request["userId"] ?? "";
+                String nickname = request["nickname"] ?? "알 수 없는 사용자";
+                List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(request["profileImages"] ?? []);
+                String? mainProfileImage = request["mainProfileImage"];
+
+                return Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 5,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  color: Colors.grey.shade800,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(12),
+                    leading: _buildProfileImage(mainProfileImage, profileImages),
+                    title: Text(
+                      nickname,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle, color: Colors.green),
+                          onPressed: () => _acceptFriend(userId),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                          onPressed: () => _declineFriend(userId),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ProfileDetailPage(
+                            userId: userId,
+                            nickname: nickname,
+                            profileImages: profileImages,
+                            isCurrentUser: false,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
   /// 프로필 이미지 (이미지 리스트 지원)
-  Widget _buildProfileImage(String mainProfileImage, List<Map<String, dynamic>> profileImages) {
+  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages) {
     return GestureDetector(
       onTap: () {
-        if (profileImages.isNotEmpty) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => FullScreenImagePage(
-                imageUrls: profileImages.map((img) => img['url'] as String).toList(),
-                initialIndex: profileImages.indexWhere((img) => img['url'] == mainProfileImage),
-              ),
+        List<String> validImageUrls = profileImages
+            .map((img) => img['url'] as String?)
+            .where((url) => url != null && url.isNotEmpty)
+            .cast<String>()
+            .toList();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FullScreenImagePage(
+              imageUrls: validImageUrls,
+              initialIndex: mainProfileImage != null && validImageUrls.contains(mainProfileImage)
+                  ? validImageUrls.indexOf(mainProfileImage)
+                  : 0,
             ),
-          );
-        }
+          ),
+        );
       },
-      child: CircleAvatar(
-        radius: 28,
-        backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
-        child: mainProfileImage.isEmpty ? Icon(Icons.person, color: Theme.of(context).textTheme.bodyMedium?.color) : null,
-        onBackgroundImageError: mainProfileImage.isNotEmpty
-            ? (exception, stackTrace) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("이미지 로드 오류: $exception")),
-          );
-          return null;
-        }
-            : null,
-      ),
-    );
-  }
-}
-
-// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
-class FullScreenImagePage extends StatelessWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const FullScreenImagePage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        itemCount: imageUrls.length,
-        controller: PageController(initialPage: initialIndex),
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Center(
-              child: Image.network(
-                imageUrls[index],
-                fit: BoxFit.contain,
-                height: double.infinity,
-                width: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.error, color: Colors.white));
-                },
-              ),
-            ),
-          );
-        },
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+        child: CircleAvatar(
+          radius: 28,
+          backgroundColor: Colors.black,
+          backgroundImage: mainProfileImage != null && mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
+          child: mainProfileImage == null || mainProfileImage.isEmpty
+              ? const Icon(
+            Icons.person,
+            size: 56,
+            color: Colors.grey,
+          )
+              : null,
+          onBackgroundImageError: mainProfileImage != null && mainProfileImage.isNotEmpty
+              ? (exception, stackTrace) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("이미지 로드 오류: $exception")),
+            );
+            return null;
+          }
+              : null,
+        ),
       ),
     );
   }

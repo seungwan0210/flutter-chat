@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/profile_detail_page.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class ChatPage extends StatefulWidget {
   final String chatRoomId;
@@ -25,9 +27,12 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final FirestoreService _firestoreService = FirestoreService();
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   void _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
@@ -105,20 +110,89 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   @override
+  void dispose() {
+    _messageController.dispose();
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? Colors.black,
-        title: Text(
-          widget.chatPartnerName,
-          style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white),
+        backgroundColor: Colors.black,
+        title: _isSearching
+            ? TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: "대화 내용 검색",
+            hintStyle: TextStyle(color: Colors.white70),
+            border: InputBorder.none,
+            focusedBorder: InputBorder.none,
+          ),
+          style: const TextStyle(color: Colors.white),
+          autofocus: true,
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value.trim();
+            });
+          },
+        )
+            : Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                // 프로필 이미지를 클릭하면 ProfileDetailPage로 이동
+                _firestoreService.incrementProfileViews(widget.receiverId); // 조회 수 증가
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfileDetailPage(
+                      userId: widget.receiverId,
+                      nickname: widget.chatPartnerName,
+                      profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
+                      isCurrentUser: false,
+                    ),
+                  ),
+                );
+              },
+              child: CircleAvatar(
+                radius: 20,
+                backgroundImage: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isNotEmpty
+                    ? NetworkImage(_firestoreService.sanitizeProfileImage(widget.chatPartnerImage))
+                    : null,
+                child: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isEmpty
+                    ? const Icon(Icons.person, color: Colors.grey)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              widget.chatPartnerName,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white),
-            onPressed: () {},
+            icon: Icon(_isSearching ? Icons.close : Icons.search, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
           ),
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: () {},
+            ),
         ],
       ),
       body: Column(
@@ -149,6 +223,15 @@ class _ChatPageState extends State<ChatPage> {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _scrollToBottom();
                 });
+
+                // 검색어로 메시지 필터링
+                if (_searchQuery.isNotEmpty) {
+                  messages = messages.where((message) {
+                    var messageData = message.data() as Map<String, dynamic>;
+                    String text = messageData['text']?.toLowerCase() ?? "";
+                    return text.contains(_searchQuery.toLowerCase());
+                  }).toList();
+                }
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -201,77 +284,116 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  /// 채팅 메시지 버블 UI (시간을 메시지 옆에 표시)
+  /// 채팅 메시지 버블 UI (이미지 스타일 반영)
   Widget _buildMessageBubble(String message, bool isMe, String time) {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMe)
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isNotEmpty
-                  ? NetworkImage(_firestoreService.sanitizeProfileImage(widget.chatPartnerImage))
-                  : null,
-              child: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isEmpty
-                  ? const Icon(Icons.person, color: Colors.grey)
-                  : null,
-            ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              color: isMe ? Colors.amber[100] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 5,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: isMe
-                  ? [
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
-                  ),
-                ),
-              ]
-                  : [
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+          if (!isMe) ...[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    // 프로필 이미지를 클릭하면 ProfileDetailPage로 이동
+                    _firestoreService.incrementProfileViews(widget.receiverId); // 조회 수 증가
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProfileDetailPage(
+                          userId: widget.receiverId,
+                          nickname: widget.chatPartnerName,
+                          profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
+                          isCurrentUser: false,
+                        ),
+                      ),
+                    );
+                  },
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundImage: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isNotEmpty
+                        ? NetworkImage(_firestoreService.sanitizeProfileImage(widget.chatPartnerImage))
+                        : null,
+                    child: _firestoreService.sanitizeProfileImage(widget.chatPartnerImage).isEmpty
+                        ? const Icon(Icons.person, color: Colors.grey)
+                        : null,
                   ),
                 ),
               ],
             ),
+            const SizedBox(width: 8),
+          ],
+          Column(
+            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (!isMe)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    widget.chatPartnerName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                    ),
+                  ),
+                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (isMe) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.6, // 메시지 최대 너비 설정
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.amber[100] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 5,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                      ),
+                    ),
+                  ),
+                  if (!isMe) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      time,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -325,12 +447,5 @@ class _ChatPageState extends State<ChatPage> {
     if (timestamp == null) return "";
     DateTime date = timestamp.toDate();
     return DateFormat("a h:mm", "ko_KR").format(date).replaceAll("AM", "오전").replaceAll("PM", "오후");
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
   }
 }

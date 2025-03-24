@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/pages/FullScreenImagePage.dart'; // FullScreenImagePage 임포트
 
 class ProfileImagePage extends StatefulWidget {
   const ProfileImagePage({super.key});
@@ -35,7 +36,7 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
       if (userData != null) {
         List<Map<String, dynamic>> images = List<Map<String, dynamic>>.from(userData['profileImages'] ?? []);
-        // 타임스탬프 기준으로 내림차순 정렬 (최신순)
+        // 타임스탬프 기준으로 내림차순 정렬 (최신에서 과거 순)
         images.sort((a, b) {
           DateTime dateA = DateTime.parse(a['timestamp'] ?? '1970-01-01T00:00:00');
           DateTime dateB = DateTime.parse(b['timestamp'] ?? '1970-01-01T00:00:00');
@@ -94,7 +95,7 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       Map<String, dynamic> imageData = await _firestoreService.uploadProfileImage(imageFile);
       setState(() {
         _profileImages.add(imageData);
-        // 타임스탬프 기준으로 내림차순 정렬 (최신순)
+        // 타임스탬프 기준으로 내림차순 정렬 (최신에서 과거 순)
         _profileImages.sort((a, b) {
           DateTime dateA = DateTime.parse(a['timestamp'] ?? '1970-01-01T00:00:00');
           DateTime dateB = DateTime.parse(b['timestamp'] ?? '1970-01-01T00:00:00');
@@ -170,7 +171,7 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       await _firestoreService.setMainProfileImage(imageUrl);
       setState(() {
         _mainProfileImage = imageUrl;
-        // 대표 이미지를 리스트의 맨 위로 이동
+        // 대표 이미지를 리스트의 맨 처음으로 이동 (내림차순이므로 맨 처음이 최신)
         int index = _profileImages.indexWhere((item) => item['url'] == imageUrl);
         if (index != -1) {
           var selectedImage = _profileImages.removeAt(index);
@@ -186,6 +187,41 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       if (mounted) {
         setState(() {
           _errorMessage = "대표 이미지 설정 중 오류가 발생했습니다: $e";
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage!)),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// 기본 이미지로 설정
+  Future<void> _setDefaultImage() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _firestoreService.setMainProfileImage(null); // mainProfileImage를 null로 설정
+      setState(() {
+        _mainProfileImage = null; // UI에서도 null로 설정하여 Checkbox 해제
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("기본 이미지로 설정되었습니다.")),
+        );
+        // Navigator.pop 시 mainProfileImage를 null로 전달
+        Navigator.pop(context, null);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = "기본 이미지 설정 중 오류가 발생했습니다: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
@@ -235,21 +271,28 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
               ),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
-            else if (_profileImages.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text("아직 업로드된 이미지가 없습니다."),
-              )
             else
               Expanded(
-                child: ListView.builder(
+                child: _profileImages.isEmpty
+                    ? const Center(
+                  child: Text(
+                    "아직 업로드된 이미지가 없습니다.",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                )
+                    : ListView.builder(
                   padding: const EdgeInsets.all(16.0),
                   itemCount: _profileImages.length,
                   itemBuilder: (context, index) {
                     Map<String, dynamic> imageData = _profileImages[index];
-                    String imageUrl = imageData['url'];
+                    String? imageUrl = imageData['url'];
                     String timestamp = imageData['timestamp'] ?? '';
                     bool isMainImage = imageUrl == _mainProfileImage;
+
+                    // url이 null이거나 빈 문자열인 경우 기본 아이콘 표시
+                    if (imageUrl == null || imageUrl.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
 
                     // 타임스탬프에서 날짜만 추출 (YYYY-MM-DD)
                     String dateOnly = '';
@@ -263,12 +306,18 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
                       child: ListTile(
                         leading: GestureDetector(
                           onTap: () {
+                            // null이 아닌 url만 필터링하여 전달
+                            List<String> validImageUrls = _profileImages
+                                .map((img) => img['url'] as String?)
+                                .where((url) => url != null && url.isNotEmpty)
+                                .cast<String>()
+                                .toList();
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => FullScreenImagePage(
-                                  imageUrls: _profileImages.map((img) => img['url'] as String).toList(),
-                                  initialIndex: index,
+                                  imageUrls: validImageUrls,
+                                  initialIndex: validImageUrls.indexOf(imageUrl),
                                 ),
                               ),
                             );
@@ -276,6 +325,13 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
                           child: CircleAvatar(
                             radius: 30,
                             backgroundImage: NetworkImage(imageUrl),
+                            child: imageUrl.isEmpty
+                                ? Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Theme.of(context).textTheme.bodyMedium?.color,
+                            )
+                                : null,
                           ),
                         ),
                         title: Text(
@@ -313,74 +369,59 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
                   },
                 ),
               ),
+            // 버튼 섹션
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _pickImage,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    disabledBackgroundColor: Theme.of(context).disabledColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text(
-                    "이미지 추가",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onPrimary,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _setDefaultImage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          disabledBackgroundColor: Theme.of(context).disabledColor,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(
+                          "기본 이미지 설정",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: SizedBox(
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _pickImage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          disabledBackgroundColor: Theme.of(context).disabledColor,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(
+                          "이미지 추가",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// 전체 화면 이미지 보기 페이지 (여러 장 넘겨보기 지원)
-class FullScreenImagePage extends StatelessWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const FullScreenImagePage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        itemCount: imageUrls.length,
-        controller: PageController(initialPage: initialIndex),
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Center(
-              child: Image.network(
-                imageUrls[index],
-                fit: BoxFit.contain,
-                height: double.infinity,
-                width: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.error, color: Colors.white));
-                },
-              ),
-            ),
-          );
-        },
       ),
     );
   }
