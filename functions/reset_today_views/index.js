@@ -22,3 +22,18 @@ exports.resetTodayViews = functions.pubsub.schedule('0 0 * * *') // 매일 자�
     console.log('Successfully reset todayViews for all users');
     return null;
   });
+
+exports.checkBlockedUser = functions.firestore
+  .document('users/{userId}')
+  .onUpdate(async (change, context) => {
+    const newData = change.after.data();
+    const blockedByCount = newData.blockedByCount || 0;
+
+    if (blockedByCount >= 10 && newData.isActive !== false) {
+      // 계정 비활성화
+      await admin.firestore().collection('users').doc(context.params.userId).update({
+        isActive: false,
+      });
+      console.log(`User ${context.params.userId} has been deactivated due to ${blockedByCount} blocks.`);
+    }
+  });

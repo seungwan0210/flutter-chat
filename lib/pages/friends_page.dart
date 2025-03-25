@@ -46,13 +46,19 @@ class _FriendsPageState extends State<FriendsPage> {
     });
   }
 
-  /// 등급 계산
-  String _calculateRank(int totalViews) {
-    if (totalViews >= 500) return "다이아몬드";
-    if (totalViews >= 200) return "플래티넘";
-    if (totalViews >= 100) return "골드";
-    if (totalViews >= 50) return "실버";
-    return "브론즈";
+  /// 등급 계산 (11단계, 이모티콘으로 반환)
+  String _calculateRank(int totalViews, bool isDiamond) {
+    if (isDiamond) return "💎"; // 다이아 (지정된 사용자)
+    if (totalViews >= 20000) return "✨"; // 금별
+    if (totalViews >= 10000) return "⭐"; // 은별
+    if (totalViews >= 5000) return "🌟"; // 동별
+    if (totalViews >= 3000) return "🏆"; // 금훈장
+    if (totalViews >= 2500) return "🏅"; // 은훈장
+    if (totalViews >= 2200) return "🎖️"; // 동훈장
+    if (totalViews >= 1500) return "🥇"; // 금메달
+    if (totalViews >= 500) return "🥈"; // 은메달
+    if (totalViews >= 300) return "🥉"; // 동메달
+    return "💀"; // 해골
   }
 
   @override
@@ -68,8 +74,31 @@ class _FriendsPageState extends State<FriendsPage> {
             if (snapshot.hasError) {
               return const Text("친구 (오류)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
             }
-            int friendCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-            return Text("친구 ($friendCount)", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
+            if (!snapshot.hasData) {
+              return const Text("친구 (로딩 중)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
+            }
+
+            // 친구 목록에서 비활성화된 유저 제외
+            return StreamBuilder<List<Map<String, dynamic>>>(
+              stream: CombineLatestStream.list(
+                snapshot.data!.docs.map((friend) {
+                  String friendId = friend.id;
+                  return firestore.collection("users").doc(friendId).snapshots().map((userSnapshot) {
+                    if (!userSnapshot.exists) return null;
+                    var friendData = userSnapshot.data() as Map<String, dynamic>?;
+                    if (friendData == null || !(friendData["isActive"] ?? true)) return null;
+                    return {"friendId": friendId};
+                  });
+                }).toList(),
+              ).map((results) => results.where((result) => result != null).cast<Map<String, dynamic>>().toList()),
+              builder: (context, activeFriendsSnapshot) {
+                if (activeFriendsSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Text("친구 (로딩 중)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
+                }
+                int friendCount = activeFriendsSnapshot.hasData ? activeFriendsSnapshot.data!.length : 0;
+                return Text("친구 ($friendCount)", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
+              },
+            );
           },
         ),
         backgroundColor: Colors.black,
@@ -177,7 +206,7 @@ class _FriendsPageState extends State<FriendsPage> {
                               return firestore.collection("users").doc(friendId).snapshots().map((snapshot) {
                                 if (!snapshot.exists) return null;
                                 var friendData = snapshot.data() as Map<String, dynamic>?;
-                                if (friendData == null) return null;
+                                if (friendData == null || !(friendData["isActive"] ?? true)) return null; // 비활성화된 유저 제외
                                 return {
                                   "friendId": friendId,
                                   "isOnline": friendData["status"] == "online",
@@ -248,7 +277,8 @@ class _FriendsPageState extends State<FriendsPage> {
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
     String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
     int totalViews = currentUserData!.containsKey("totalViews") ? currentUserData!["totalViews"] ?? 0 : 0;
-    String rank = _calculateRank(totalViews);
+    bool isDiamond = currentUserData!["isDiamond"] ?? false;
+    String rank = _calculateRank(totalViews, isDiamond);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
     String? mainProfileImage = currentUserData!["mainProfileImage"];
 
@@ -266,45 +296,36 @@ class _FriendsPageState extends State<FriendsPage> {
           ),
         );
       },
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              _buildProfileImage(mainProfileImage, profileImages, isOnline),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nickname,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    Text(
-                      "등급: $rank",
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent),
-                    ),
-                    Text(
-                      "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    Text(
-                      "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    Text(
-                      "메시지 설정: $messageSetting",
-                      style: const TextStyle(fontSize: 14, color: Colors.black54),
-                    ),
-                  ],
-                ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            _buildProfileImage(mainProfileImage, profileImages, isOnline, rank),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nickname,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  Text(
+                    "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  Text(
+                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  Text(
+                    "메시지 설정: $messageSetting",
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -333,10 +354,10 @@ class _FriendsPageState extends State<FriendsPage> {
             builder: (context, friendSnapshot) {
               if (!friendSnapshot.hasData) return const ListTile(title: Text("로딩 중...", style: TextStyle(color: Colors.black87)));
               if (friendSnapshot.hasError) return const ListTile(title: Text("정보 로드 오류", style: TextStyle(color: Colors.black87)));
-              if (!friendSnapshot.data!.exists) return const ListTile(title: Text("사용자 데이터 없음", style: TextStyle(color: Colors.black87)));
+              if (!friendSnapshot.data!.exists) return const SizedBox.shrink();
 
               var friendData = friendSnapshot.data!.data() as Map<String, dynamic>?;
-              if (friendData == null) return const ListTile(title: Text("사용자 데이터 없음", style: TextStyle(color: Colors.black87)));
+              if (friendData == null || !(friendData["isActive"] ?? true)) return const SizedBox.shrink(); // 비활성화된 유저 제외
 
               List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(friendData["profileImages"] ?? []);
               String? mainProfileImage = friendData["mainProfileImage"];
@@ -347,15 +368,14 @@ class _FriendsPageState extends State<FriendsPage> {
               String messageSetting = friendData["messageReceiveSetting"] ?? "전체 허용";
               bool isOnline = friendData["status"] == "online";
               int totalViews = friendData.containsKey("totalViews") ? friendData["totalViews"] ?? 0 : 0;
-              String rank = _calculateRank(totalViews);
+              bool isDiamond = friendData["isDiamond"] ?? false;
+              String rank = _calculateRank(totalViews, isDiamond);
 
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  leading: _buildProfileImage(mainProfileImage, profileImages, isOnline),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                  leading: _buildProfileImage(mainProfileImage, profileImages, isOnline, rank),
                   title: Text(
                     nickname,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
@@ -363,10 +383,6 @@ class _FriendsPageState extends State<FriendsPage> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "등급: $rank",
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent),
-                      ),
                       Text(
                         "홈샵: $homeShop",
                         style: const TextStyle(color: Colors.black54),
@@ -465,9 +481,7 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   void _showFriendProfile(BuildContext context, String friendId, String friendName, List<Map<String, dynamic>> profileImages) {
-    // FriendInfoPage로 이동하기 전에 조회 수 증가
     _firestoreService.incrementProfileViews(friendId);
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -480,7 +494,7 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 
-  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline) {
+  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline, String rank) {
     return Stack(
       children: [
         GestureDetector(
@@ -518,6 +532,22 @@ class _FriendsPageState extends State<FriendsPage> {
           bottom: 0,
           right: 0,
           child: Icon(Icons.circle, color: isOnline ? Colors.green : Colors.red, size: 12),
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black, width: 1),
+            ),
+            child: Text(
+              rank,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
         ),
       ],
     );

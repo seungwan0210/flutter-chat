@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart'; // Logger 패키지 필요
 import 'main_page.dart';
 import 'signup_page.dart';
 
@@ -14,42 +15,58 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final Logger _logger = Logger();
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isLoginEnabled = false; // ✅ 로그인 버튼 활성화 상태
+  bool _isLoginEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _emailController.addListener(_validateInputs);
     _passwordController.addListener(_validateInputs);
+    _logger.i("LoginPage initState called");
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _logger.i("LoginPage dispose called");
+    super.dispose();
   }
 
   void _validateInputs() {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    setState(() {
-      _isLoginEnabled = email.contains('@') && password.isNotEmpty && password.length >= 6;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoginEnabled = email.contains('@') && password.isNotEmpty && password.length >= 6;
+      });
+    }
   }
 
   Future<void> _updateUserStatus(String uid, String status) async {
+    _logger.i("Updating user status for UID: $uid to $status");
     await _firestore.collection("users").doc(uid).update({"status": status});
   }
 
   Future<void> _createUserData(User user) async {
+    _logger.i("Creating user data for UID: ${user.uid}");
     await _firestore.collection("users").doc(user.uid).set({
       "uid": user.uid,
       "email": user.email,
       "nickname": "새 유저",
-      "profileImage": "https://via.placeholder.com/150", // ✅ 기본 이미지
+      "profileImage": "https://via.placeholder.com/150",
       "dartBoard": "다트라이브",
       "messageSetting": "all",
       "status": "online",
       "createdAt": FieldValue.serverTimestamp(),
+      "blockedByCount": 0,
+      "isActive": true,
     });
   }
 
@@ -61,6 +78,8 @@ class _LoginPageState extends State<LoginPage> {
         return "비밀번호가 올바르지 않습니다.";
       case "invalid-email":
         return "이메일 형식이 올바르지 않습니다.";
+      case "account-disabled":
+        return "이 계정은 비활성화되었습니다.";
       default:
         return "로그인 실패: $code";
     }
@@ -69,41 +88,61 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (!_isLoginEnabled) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
+      _logger.i("Attempting login with email: ${_emailController.text.trim()}");
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       String uid = userCredential.user!.uid;
+      _logger.i("Login successful, UID: $uid");
+
       DocumentSnapshot userDoc = await _firestore.collection("users").doc(uid).get();
+      _logger.i("Fetched user document for UID: $uid, exists: ${userDoc.exists}");
 
       if (userDoc.exists) {
         await _updateUserStatus(uid, "online");
+        _logger.i("User status updated to online");
       } else {
         await _createUserData(userCredential.user!);
+        _logger.i("User document created");
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 3)),
-      );
+      _logger.i("Navigating to MainPage");
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 3)),
+        );
+      }
     } on FirebaseAuthException catch (authError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_getErrorMessage(authError.code))),
-      );
+      _logger.e("FirebaseAuthException: ${authError.code} - ${authError.message}");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_getErrorMessage(authError.code))),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("로그인 중 오류 발생: $e")),
-      );
+      _logger.e("Unexpected error during login: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("로그인 중 오류 발생: $e")),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false; // ✅ 오타 수정
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      _logger.i("Login process completed, loading: $_isLoading");
     }
   }
 
@@ -195,12 +234,5 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }

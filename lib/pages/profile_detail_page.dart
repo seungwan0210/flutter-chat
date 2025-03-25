@@ -29,7 +29,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  bool _isBlocked = false; // 클래스 상태 변수로 선언
+  bool _isBlocked = false;
   bool _isFriend = false;
   bool _isRequestPending = false;
   int _rating = 0;
@@ -39,9 +39,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   int dailyViews = 0;
   String messageSetting = "전체 허용";
   String? _errorMessage;
-  String _rank = "브론즈";
+  String _rank = "💀"; // 초기값을 해골로 설정
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
+  bool _isDiamond = false; // 다이아 등급 여부
+  bool _isActive = true; // 계정 활성화 상태
 
   @override
   void initState() {
@@ -59,20 +61,25 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     return "${date.year}-${date.month}-${date.day}";
   }
 
-  /// 등급 계산
-  String _calculateRank(int totalViews) {
-    if (totalViews >= 500) return "다이아몬드";
-    if (totalViews >= 200) return "플래티넘";
-    if (totalViews >= 100) return "골드";
-    if (totalViews >= 50) return "실버";
-    return "브론즈";
+  /// 등급 계산 (11단계, 이모티콘으로 반환)
+  String _calculateRank(int totalViews, bool isDiamond) {
+    if (isDiamond) return "💎"; // 다이아 (어드민 지정)
+    if (totalViews >= 20000) return "✨"; // 금별
+    if (totalViews >= 10000) return "⭐"; // 은별
+    if (totalViews >= 5000) return "🌟"; // 동별
+    if (totalViews >= 3000) return "🏆"; // 금훈장
+    if (totalViews >= 2500) return "🏅"; // 은훈장
+    if (totalViews >= 2200) return "🎖️"; // 동훈장
+    if (totalViews >= 1500) return "🥇"; // 금메달
+    if (totalViews >= 500) return "🥈"; // 은메달
+    if (totalViews >= 300) return "🥉"; // 동메달
+    return "💀"; // 해골
   }
 
   /// 친구 상태 및 요청 상태 확인
   Future<void> _checkFriendStatus() async {
     String currentUserId = _auth.currentUser!.uid;
 
-    // 이미 친구인지 확인
     DocumentSnapshot friendDoc = await FirebaseFirestore.instance
         .collection("users")
         .doc(currentUserId)
@@ -85,7 +92,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       });
     }
 
-    // 이미 요청 중인지 확인
     DocumentSnapshot requestDoc = await FirebaseFirestore.instance
         .collection("users")
         .doc(widget.userId)
@@ -106,6 +112,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       if (currentUserId == viewedUserId) return;
 
       DocumentReference profileRef = FirebaseFirestore.instance.collection("users").doc(viewedUserId);
+      DocumentSnapshot profileSnapshot = await profileRef.get();
+      if (!profileSnapshot.exists || !(profileSnapshot["isActive"] ?? true)) return; // 비활성화된 유저는 조회수 증가 제외
+
       DocumentReference viewRef = profileRef.collection("profile_views").doc(currentUserId);
 
       DocumentSnapshot viewSnapshot = await viewRef.get();
@@ -140,7 +149,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             setState(() {
               totalViews = updatedData["totalViews"] ?? 0;
               dailyViews = updatedData["todayViews"] ?? 0;
-              _rank = _calculateRank(totalViews);
+              _isDiamond = updatedData["isDiamond"] ?? false;
+              _rank = _calculateRank(totalViews, _isDiamond);
             });
           }
         }
@@ -168,10 +178,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               _homeShop = userData["homeShop"] ?? "없음";
               totalViews = userData["totalViews"] ?? 0;
               dailyViews = userData["todayViews"] ?? 0;
-              messageSetting = userData["messageSetting"] ?? "전체 허용";
-              _rank = _calculateRank(totalViews);
+              messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
+              _isDiamond = userData["isDiamond"] ?? false;
+              _rank = _calculateRank(totalViews, _isDiamond);
               _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
               _mainProfileImage = userData["mainProfileImage"];
+              _isActive = userData["isActive"] ?? true; // 계정 활성화 상태 설정
             });
           }
         } else {
@@ -201,6 +213,23 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   Future<void> _toggleBlockUser() async {
     try {
       await _firestoreService.toggleBlockUser(widget.userId, widget.nickname, widget.profileImages);
+
+      // 차단 상태가 토글된 후 Firestore에서 최신 상태를 가져와 UI 업데이트
+      DocumentReference userRef = FirebaseFirestore.instance.collection("users").doc(widget.userId);
+      DocumentSnapshot userSnapshot = await userRef.get();
+      if (userSnapshot.exists) {
+        int newBlockedByCount = userSnapshot["blockedByCount"] ?? 0;
+        bool newIsActive = userSnapshot["isActive"] ?? true;
+        setState(() {
+          _isBlocked = !_isBlocked; // 차단 상태 토글
+          _isActive = newIsActive; // 계정 활성화 상태 업데이트
+        });
+
+        if (newBlockedByCount >= 10 && newIsActive) {
+          // Cloud Function에서 처리되므로 추가 확인 불필요
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_isBlocked ? "차단이 해제되었습니다." : "사용자가 차단되었습니다.")),
       );
@@ -237,7 +266,15 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             const SizedBox(height: 16),
             _buildProfileInfo(),
             const SizedBox(height: 16),
-            _buildActionButtons(),
+            if (!_isActive)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "이 계정은 비활성화되었습니다.",
+                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            if (_isActive) _buildActionButtons(),
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -311,15 +348,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "등급: $_rank",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.amber,
             ),
           ),
         ],
@@ -478,7 +506,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               gradient: const LinearGradient(
                 colors: [Colors.amber, Colors.orange],
               ),
-              onPressed: () async {
+              onPressed: _isActive
+                  ? () async {
                 String senderId = _auth.currentUser!.uid;
                 String receiverId = widget.userId;
 
@@ -521,6 +550,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                     ),
                   ),
                 );
+              }
+                  : () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
+                );
               },
             ),
             const SizedBox(height: 12),
@@ -537,7 +571,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                   );
                 }
 
-                _isBlocked = snapshot.data ?? false; // 클래스 상태 변수 갱신
+                _isBlocked = snapshot.data ?? false;
                 return Column(
                   children: [
                     _buildFriendActionButton(),
@@ -595,7 +629,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         gradient: const LinearGradient(
           colors: [Colors.amber, Colors.orange],
         ),
-        onPressed: _sendFriendRequest,
+        onPressed: _isActive
+            ? _sendFriendRequest
+            : () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("비활성화된 계정은 친구로 추가할 수 없습니다.")),
+          );
+        },
       );
     }
   }

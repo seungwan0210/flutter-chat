@@ -32,10 +32,12 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   bool _isFavorite = false;
   int totalViews = 0;
   int dailyViews = 0;
-  String _rank = "브론즈";
+  String _rank = "💀"; // 초기값을 해골로 설정
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
   bool _isBlocked = false;
+  bool _isDiamond = false; // 다이아 등급 여부
+  bool _isActive = true; // 계정 활성화 상태
 
   @override
   void initState() {
@@ -59,9 +61,11 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           _friendData = friendSnapshot.data() as Map<String, dynamic>?;
           totalViews = _friendData!["totalViews"] ?? 0;
           dailyViews = _friendData!["todayViews"] ?? 0;
-          _rank = _calculateRank(totalViews);
+          _isDiamond = _friendData!["isDiamond"] ?? false;
+          _rank = _calculateRank(totalViews, _isDiamond);
           _profileImages = _firestoreService.sanitizeProfileImages(_friendData!["profileImages"] ?? []);
           _mainProfileImage = _friendData!["mainProfileImage"];
+          _isActive = _friendData!["isActive"] ?? true; // 계정 활성화 상태 설정
           _isLoading = false;
         });
       } else {
@@ -98,6 +102,13 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   }
 
   Future<void> _toggleFavorite() async {
+    if (!_isActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("비활성화된 계정은 즐겨찾기에 추가할 수 없습니다.")),
+      );
+      return;
+    }
+
     String currentUserId = _auth.currentUser!.uid;
     if (_isFavorite) {
       await _firestore
@@ -120,6 +131,13 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   }
 
   void _startChat() {
+    if (!_isActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
+      );
+      return;
+    }
+
     String chatRoomId = _getChatRoomId(_auth.currentUser!.uid, widget.receiverId);
 
     Navigator.push(
@@ -143,7 +161,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   Future<void> _removeFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
-    // 확인 다이얼로그 표시
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -183,7 +200,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   Future<void> _blockFriend() async {
     String currentUserId = _auth.currentUser!.uid;
 
-    // 확인 다이얼로그 표시
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -213,7 +229,15 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             .doc(widget.receiverId)
             .delete();
 
-        // 차단 후 BlockedUsersPage로 이동
+        // 차단 후 Firestore에서 최신 상태를 가져와 UI 업데이트
+        DocumentReference userRef = _firestore.collection("users").doc(widget.receiverId);
+        DocumentSnapshot userSnapshot = await userRef.get();
+        if (userSnapshot.exists) {
+          setState(() {
+            _isActive = userSnapshot["isActive"] ?? true; // 계정 활성화 상태 업데이트
+          });
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const BlockedUsersPage()),
@@ -225,12 +249,18 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     }
   }
 
-  String _calculateRank(int totalViews) {
-    if (totalViews >= 500) return "다이아몬드";
-    if (totalViews >= 200) return "플래티넘";
-    if (totalViews >= 100) return "골드";
-    if (totalViews >= 50) return "실버";
-    return "브론즈";
+  String _calculateRank(int totalViews, bool isDiamond) {
+    if (isDiamond) return "💎"; // 다이아 (어드민 지정)
+    if (totalViews >= 20000) return "✨"; // 금별
+    if (totalViews >= 10000) return "⭐"; // 은별
+    if (totalViews >= 5000) return "🌟"; // 동별
+    if (totalViews >= 3000) return "🏆"; // 금훈장
+    if (totalViews >= 2500) return "🏅"; // 은훈장
+    if (totalViews >= 2200) return "🎖️"; // 동훈장
+    if (totalViews >= 1500) return "🥇"; // 금메달
+    if (totalViews >= 500) return "🥈"; // 은메달
+    if (totalViews >= 300) return "🥉"; // 동메달
+    return "💀"; // 해골
   }
 
   @override
@@ -266,17 +296,21 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           : SingleChildScrollView(
         child: Column(
           children: [
-            // 상단 프로필 헤더
             _buildProfileHeader(),
             const SizedBox(height: 16),
-            // 통계 정보
             _buildProfileStats(),
             const SizedBox(height: 16),
-            // 프로필 정보
             _buildProfileInfo(),
             const SizedBox(height: 16),
-            // 액션 버튼
-            _buildActionButtons(),
+            if (!_isActive)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "이 계정은 비활성화되었습니다.",
+                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            if (_isActive) _buildActionButtons(),
           ],
         ),
       ),
@@ -342,15 +376,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "등급: $_rank",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white70,
             ),
           ),
         ],

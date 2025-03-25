@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_detail_page.dart';
 import 'UserSearchPage.dart';
+import 'admin_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
@@ -25,7 +26,8 @@ class _HomePageState extends State<HomePage> {
 
   List<String> ratingOptions = ["전체"];
   String _messageSetting = "ALL";
-  String _rank = "브론즈";
+  String _rank = "💀";
+  bool _isDiamond = false;
 
   @override
   void initState() {
@@ -35,7 +37,6 @@ class _HomePageState extends State<HomePage> {
     ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
   }
 
-  /// Firestore에서 로그인한 사용자 정보 실시간 감지
   void _listenToCurrentUser() {
     String currentUserId = auth.currentUser!.uid;
     FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots().listen((userDoc) {
@@ -43,7 +44,8 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           currentUserData = userDoc.data() as Map<String, dynamic>;
           _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
-          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0);
+          _isDiamond = currentUserData!["isDiamond"] ?? false;
+          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isDiamond);
         });
       }
     }, onError: (e) {
@@ -53,19 +55,23 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// Firestore에서 프로필 통계 실시간 가져오기
   Stream<DocumentSnapshot> _getProfileStatsStream() {
     String currentUserId = auth.currentUser!.uid;
     return FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots();
   }
 
-  /// 등급 계산
-  String _calculateRank(int totalViews) {
-    if (totalViews >= 500) return "다이아몬드";
-    if (totalViews >= 200) return "플래티넘";
-    if (totalViews >= 100) return "골드";
-    if (totalViews >= 50) return "실버";
-    return "브론즈";
+  String _calculateRank(int totalViews, bool isDiamond) {
+    if (isDiamond) return "💎";
+    if (totalViews >= 20000) return "✨";
+    if (totalViews >= 10000) return "⭐";
+    if (totalViews >= 5000) return "🌟";
+    if (totalViews >= 3000) return "🏆";
+    if (totalViews >= 2500) return "🏅";
+    if (totalViews >= 2200) return "🎖️";
+    if (totalViews >= 1500) return "🥇";
+    if (totalViews >= 500) return "🥈";
+    if (totalViews >= 300) return "🥉";
+    return "💀";
   }
 
   @override
@@ -77,16 +83,23 @@ class _HomePageState extends State<HomePage> {
           stream: FirebaseFirestore.instance.collection("users").snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return const Text(
-                "홈 (오류)",
-                style: TextStyle(color: Colors.white),
-              );
+              return const Text("홈 (오류)", style: TextStyle(color: Colors.white));
             }
-            int userCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-            return Text(
-              "홈 ($userCount)",
-              style: const TextStyle(color: Colors.white),
-            );
+            int userCount = snapshot.hasData
+                ? snapshot.data!.docs
+                .where((doc) {
+              Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
+              dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
+              bool isActive = isActiveRaw is bool
+                  ? isActiveRaw
+                  : isActiveRaw is String
+                  ? isActiveRaw.toLowerCase() == "true"
+                  : true;
+              return isActive;
+            })
+                .length
+                : 0;
+            return Text("홈 ($userCount)", style: const TextStyle(color: Colors.white));
           },
         ),
         backgroundColor: Colors.black,
@@ -102,28 +115,29 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+          if (currentUserData != null && currentUserData!["role"] == "admin")
+            IconButton(
+              icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AdminPage()),
+                );
+              },
+            ),
         ],
       ),
       body: Column(
         children: [
           const SizedBox(height: 5),
           _buildProfileStats(),
+          const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
           const SizedBox(height: 10),
           _buildMyProfile(),
-          const Divider(
-            thickness: 0.5,
-            color: Colors.grey,
-            indent: 16,
-            endIndent: 16,
-          ),
+          const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
           const SizedBox(height: 10),
           _buildFilterAndSearch(),
-          const Divider(
-            thickness: 0.5,
-            color: Colors.grey,
-            indent: 16,
-            endIndent: 16,
-          ),
+          const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
           const SizedBox(height: 10),
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -151,8 +165,15 @@ class _HomePageState extends State<HomePage> {
 
                     var users = snapshot.data!.docs.where((user) {
                       if (user.id == auth.currentUser!.uid) return false;
-                      if (blockedIds.contains(user.id)) return false; // 차단된 유저 제외
+                      if (blockedIds.contains(user.id)) return false;
                       Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
+                      dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
+                      bool isActive = isActiveRaw is bool
+                          ? isActiveRaw
+                          : isActiveRaw is String
+                          ? isActiveRaw.toLowerCase() == "true"
+                          : true;
+                      if (!isActive) return false;
                       String dartBoard = userData["dartBoard"] ?? "없음";
                       int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
                       return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
@@ -170,6 +191,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // 나머지 메서드 (_buildMyProfile, _buildUserList 등)는 이전 코드와 동일하게 유지
+  // 생략된 부분은 그대로 사용한다고 가정
   Widget _buildMyProfile() {
     if (currentUserData == null) return const Center(child: CircularProgressIndicator());
 
@@ -193,78 +216,58 @@ class _HomePageState extends State<HomePage> {
           ),
         );
       },
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              _buildProfileImage(mainProfileImage, profileImages, isOnline),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nickname,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            _buildProfileImage(mainProfileImage, profileImages, isOnline, _rank),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nickname,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
-                    Text(
-                      "등급: $_rank",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
+                  ),
+                  Text(
+                    "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                  ),
+                  Text(
+                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                  ),
+                  Text(
+                    "메시지 설정: $messageSetting",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
                     ),
-                    Text(
-                      "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
-                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                    ),
-                    Text(
-                      "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
-                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                    ),
-                    Text(
-                      "메시지 설정: $messageSetting",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).textTheme.bodyMedium?.color,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// 유저 리스트 UI
   Widget _buildUserList(List<QueryDocumentSnapshot> users) {
     return ListView(
       children: [
         _buildUserSection("온라인 유저", users.where((user) => user["status"] == "online").toList()),
-        const Divider(
-          thickness: 0.5,
-          color: Colors.grey,
-          indent: 16,
-          endIndent: 16,
-        ),
+        const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
         _buildUserSection("오프라인 유저", users.where((user) => user["status"] == "offline").toList()),
       ],
     );
   }
 
-  /// 유저 섹션 (온라인/오프라인)
   Widget _buildUserSection(String title, List<QueryDocumentSnapshot> users) {
     if (users.isEmpty) return const SizedBox();
     return Column(
@@ -295,17 +298,16 @@ class _HomePageState extends State<HomePage> {
         : "전체 허용";
     int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
     int totalViews = userData.containsKey("totalViews") ? userData["totalViews"] ?? 0 : 0;
-    String rank = _calculateRank(totalViews);
+    bool isDiamond = userData.containsKey("isDiamond") ? userData["isDiamond"] ?? false : false;
+    String rank = _calculateRank(totalViews, isDiamond);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
     String? mainProfileImage = userData["mainProfileImage"];
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        leading: _buildProfileImage(mainProfileImage, profileImages, isOnline),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+        leading: _buildProfileImage(mainProfileImage, profileImages, isOnline, rank),
         title: Text(
           userData["nickname"] ?? "알 수 없는 사용자",
           style: TextStyle(
@@ -317,14 +319,6 @@ class _HomePageState extends State<HomePage> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "등급: $rank",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
             Text(
               "홈샵: ${userData["homeShop"] ?? "없음"}",
               style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
@@ -360,32 +354,29 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 필터 UI (홈샵 검색 제거)
   Widget _buildFilterAndSearch() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          Container(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _dropdownFilter(
-                    selectedBoardFilter,
-                    ["전체", "다트라이브", "피닉스", "그란보드", "홈보드"],
-                        (newValue) => setState(() => selectedBoardFilter = newValue!),
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: _dropdownFilter(
+                  selectedBoardFilter,
+                  ["전체", "다트라이브", "피닉스", "그란보드", "홈보드"],
+                      (newValue) => setState(() => selectedBoardFilter = newValue!),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _dropdownFilter(
-                    selectedRatingFilter,
-                    ratingOptions,
-                        (newValue) => setState(() => selectedRatingFilter = newValue!),
-                  ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _dropdownFilter(
+                  selectedRatingFilter,
+                  ratingOptions,
+                      (newValue) => setState(() => selectedRatingFilter = newValue!),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 2),
         ],
@@ -393,7 +384,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 통계 아이템 UI
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
@@ -409,7 +399,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 프로필 통계 UI
   Widget _buildProfileStats() {
     return StreamBuilder<DocumentSnapshot>(
       stream: profileStatsStream,
@@ -426,28 +415,22 @@ class _HomePageState extends State<HomePage> {
 
         var stats = snapshot.data!.data() as Map<String, dynamic>;
 
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 16),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
-                _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
-                _buildStatItem("Rank", _rank),
-              ],
-            ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
+              _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
+              _buildStatItem("Rank", _rank),
+            ],
           ),
         );
       },
     );
   }
 
-  /// 프로필 이미지 (이미지 리스트 지원)
-  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline) {
+  Widget _buildProfileImage(String? mainProfileImage, List<Map<String, dynamic>> profileImages, bool isOnline, String rank) {
     return Stack(
       children: [
         GestureDetector(
@@ -486,11 +469,26 @@ class _HomePageState extends State<HomePage> {
           right: 0,
           child: Icon(Icons.circle, color: isOnline ? Colors.green : Colors.red, size: 12),
         ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black, width: 1),
+            ),
+            child: Text(
+              rank,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  /// 드롭다운 필터 UI
   Widget _dropdownFilter(String selectedValue, List<String> items, ValueChanged<String?> onChanged) {
     return DropdownButtonFormField<String>(
       value: selectedValue,

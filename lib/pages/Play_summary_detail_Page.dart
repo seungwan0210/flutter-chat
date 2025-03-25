@@ -153,52 +153,44 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           child: SingleChildScrollView(
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              color: Theme.of(context).cardColor,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      "플레이 요약 작성",
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "플레이 요약 작성",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildEmojiSelector(),
+                const Divider(height: 40, thickness: 1, color: Colors.grey),
+                _buildDropdown(),
+                const Divider(height: 40, thickness: 1, color: Colors.grey),
+                _buildTextField(_gamesPlayedController, "경기 수", TextInputType.number),
+                const Divider(height: 40, thickness: 1, color: Colors.grey),
+                _buildTextField(_bestPerformanceController, "오늘 가장 잘된 점"),
+                const Divider(height: 40, thickness: 1, color: Colors.grey),
+                _buildTextField(_improvementController, "오늘 개선할 점"),
+                const Divider(height: 40, thickness: 1, color: Colors.grey),
+                _buildTextField(_memoController, "한 줄 메모"),
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 15),
+                    child: Text(
+                      _errorMessage!,
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 14,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    _buildEmojiSelector(),
-                    const SizedBox(height: 20),
-                    _buildDropdown(),
-                    const SizedBox(height: 20),
-                    _buildTextField(_gamesPlayedController, "경기 수", TextInputType.number),
-                    const SizedBox(height: 20),
-                    _buildTextField(_bestPerformanceController, "오늘 가장 잘된 점"),
-                    const SizedBox(height: 20),
-                    _buildTextField(_improvementController, "오늘 개선할 점"),
-                    const SizedBox(height: 20),
-                    _buildTextField(_memoController, "한 줄 메모"),
-                    if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 15),
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-                    _buildButton("저장하기", _savePlaySummary),
-                  ],
-                ),
-              ),
+                  ),
+                const SizedBox(height: 20),
+                _buildButton("저장하기", _savePlaySummary),
+              ],
             ),
           ),
         ),
@@ -206,7 +198,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     );
   }
 
-  /// 이모티콘 선택 UI (한 줄로 표시, 크기 조정)
+  /// 이모티콘 선택 UI (한 줄로 표시, 카드 형태 제거)
   Widget _buildEmojiSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,32 +221,25 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
                   _selectedEmoji = entry.key;
                 });
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // 패딩 축소
-                decoration: BoxDecoration(
-                  color: _selectedEmoji == entry.key ? Theme.of(context).primaryColor : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _selectedEmoji == entry.key ? Theme.of(context).primaryColor : Colors.grey.shade400,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entry.key,
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: _selectedEmoji == entry.key ? Theme.of(context).primaryColor : Colors.black87,
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      entry.key,
-                      style: const TextStyle(fontSize: 20), // 이모티콘 크기 축소
+                  const SizedBox(width: 4),
+                  Text(
+                    entry.value,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _selectedEmoji == entry.key ? Theme.of(context).primaryColor : Colors.black87,
                     ),
-                    const SizedBox(width: 4), // 간격 축소
-                    Text(
-                      entry.value,
-                      style: TextStyle(
-                        fontSize: 12, // 텍스트 크기 축소
-                        color: _selectedEmoji == entry.key ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           }).toList(),

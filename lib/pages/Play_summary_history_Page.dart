@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'Play_summary_detail_Page.dart';
+import 'play_summary_detail_page.dart';
 
 class PlaySummaryHistoryPage extends StatefulWidget {
   final DateTime selectedDate;
@@ -85,59 +85,51 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           child: _summary == null
               ? const Center(child: CircularProgressIndicator())
-              : Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    color: Theme.of(context).cardColor,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "플레이 요약",
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildSummaryItem("상태", _summary!['emoji'] ?? "😊"),
-                          _buildSummaryItem("플레이한 보드", _summary!['board'] ?? "없음"),
-                          _buildSummaryItem("경기 수", _summary!['games_played']?.toString() ?? "없음"),
-                          _buildSummaryItem("가장 잘된 점", _summary!['best_performance'] ?? "없음"),
-                          _buildSummaryItem("개선할 점", _summary!['improvements'] ?? "없음"),
-                          _buildSummaryItem("한 줄 메모", _summary!['memo'] ?? "없음"),
-                        ],
-                      ),
-                    ),
+              : SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "플레이 요약",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildButton("수정", () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PlaySummaryDetailPage(selectedDate: widget.selectedDate),
-                      ),
-                    ).then((_) {
-                      Navigator.pop(context); // 수정 후 이전 페이지로 돌아감
-                    });
-                  }),
-                  const SizedBox(width: 12),
-                  _buildButton("삭제", _deleteSummary, color: Theme.of(context).colorScheme.error),
-                ],
-              ),
-            ],
+                const SizedBox(height: 20),
+                _buildSummaryItem("상태", _summary!['emoji'] ?? "😊"),
+                const Divider(height: 20, thickness: 1, color: Colors.grey),
+                _buildSummaryItem("플레이한 보드", _summary!['board'] ?? "없음"),
+                const Divider(height: 20, thickness: 1, color: Colors.grey),
+                _buildSummaryItem("경기 수", _summary!['games_played']?.toString() ?? "없음"),
+                const Divider(height: 20, thickness: 1, color: Colors.grey),
+                _buildSummaryItem("가장 잘된 점", _summary!['best_performance'] ?? "없음"),
+                const Divider(height: 20, thickness: 1, color: Colors.grey),
+                _buildSummaryItem("개선할 점", _summary!['improvements'] ?? "없음"),
+                const Divider(height: 20, thickness: 1, color: Colors.grey),
+                _buildSummaryItem("한 줄 메모", _summary!['memo'] ?? "없음"),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildButton("수정", () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PlaySummaryDetailPage(selectedDate: widget.selectedDate),
+                        ),
+                      ).then((_) {
+                        Navigator.pop(context); // 수정 후 이전 페이지로 돌아감
+                      });
+                    }),
+                    const SizedBox(width: 12),
+                    _buildButton("삭제", _deleteSummary, color: Theme.of(context).colorScheme.error),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

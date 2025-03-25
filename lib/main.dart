@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/login_page.dart';
 import 'pages/main_page.dart';
 import 'firebase_options.dart';
-import 'services/firestore_service.dart'; // FirestoreService 임포트
+import 'services/firestore_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,10 +18,7 @@ void main() async {
   await initializeDateFormatting('ko_KR', null);
   Logger().i("✅ intl 초기화 완료: ko_KR");
 
-  // FirestoreService 인스턴스 생성
   FirestoreService firestoreService = FirestoreService();
-
-  // 마이그레이션 실행 여부 확인
   SharedPreferences prefs = await SharedPreferences.getInstance();
   bool hasMigrated = prefs.getBool('hasMigratedProfileImagesToNewFormat') ?? false;
 
@@ -146,13 +143,14 @@ class AuthCheck extends StatefulWidget {
 
 class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   final Logger _logger = Logger();
-  final FirestoreService _firestoreService = FirestoreService(); // FirestoreService 인스턴스 생성
+  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _setUserOnline();
+    _logger.i("AuthCheck initState called");
   }
 
   @override
@@ -160,10 +158,12 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     _setUserOffline();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+    _logger.i("AuthCheck dispose called");
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _logger.i("AppLifecycleState changed: $state");
     if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _setUserOffline();
     } else if (state == AppLifecycleState.resumed) {
@@ -171,7 +171,6 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     }
   }
 
-  /// Firestore에서 사용자 문서가 존재하는지 확인하고, 없으면 생성
   Future<void> _checkAndCreateUserData(User user) async {
     try {
       final docRef = FirebaseFirestore.instance.collection("users").doc(user.uid);
@@ -182,19 +181,21 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "uid": user.uid,
           "email": user.email,
           "nickname": "새 유저",
-          "profileImages": [], // 새로운 형식으로 초기화
-          "mainProfileImage": "", // 대표 이미지 필드 추가
+          "profileImages": [],
+          "mainProfileImage": "",
           "dartBoard": "다트라이브",
           "messageSetting": "all",
           "status": "online",
           "createdAt": FieldValue.serverTimestamp(),
           "rating": 0,
           "friendCount": 0,
-          "isOfflineMode": false, // isOfflineMode 필드 추가, 기본값 false
+          "isOfflineMode": false,
+          "blockedByCount": 0,
+          "isActive": true,
         });
-        _logger.i("✅ Firestore에 사용자 문서가 없어서 새로 생성함.");
+        _logger.i("✅ Firestore에 사용자 문서가 없어서 새로 생성함: ${user.uid}");
       } else {
-        _logger.i("✅ Firestore에 사용자 문서가 이미 존재함.");
+        _logger.i("✅ Firestore에 사용자 문서가 이미 존재함: ${user.uid}");
       }
     } catch (e) {
       _logger.e("❌ Firestore 사용자 문서 확인 중 오류 발생: $e");
@@ -204,12 +205,11 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     }
   }
 
-  /// 사용자 상태를 온라인으로 설정
   void _setUserOnline() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await _firestoreService.updateUserStatus(true); // FirestoreService의 updateUserStatus 호출
+        await _firestoreService.updateUserStatus(true);
         _logger.i("✅ 사용자 상태를 온라인으로 설정함: ${user.uid}");
       } catch (e) {
         _logger.e("❌ 온라인 상태 업데이트 실패: $e");
@@ -217,16 +217,27 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     }
   }
 
-  /// 사용자 상태를 오프라인으로 설정
   void _setUserOffline() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await _firestoreService.updateUserStatus(false); // FirestoreService의 updateUserStatus 호출
+        await _firestoreService.updateUserStatus(false);
         _logger.i("✅ 사용자 상태를 오프라인으로 설정함: ${user.uid}");
       } catch (e) {
         _logger.e("❌ 오프라인 상태 업데이트 실패: $e");
       }
+    }
+  }
+
+  Future<bool> _checkAccountStatus(String uid) async {
+    try {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(uid).get();
+      bool isActive = userDoc.exists && (userDoc["isActive"] ?? true); // 기본값 true 처리
+      _logger.i("Checked account status for UID: $uid, isActive: $isActive");
+      return isActive;
+    } catch (e) {
+      _logger.e("Error checking account status: $e");
+      return true; // 오류 발생 시 기본값 true 반환
     }
   }
 
@@ -235,6 +246,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        _logger.i("AuthStateChanges stream updated, connectionState: ${snapshot.connectionState}");
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
             body: Center(
@@ -255,12 +267,18 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
 
         final user = snapshot.data;
         if (user == null) {
+          _logger.i("No user logged in, redirecting to LoginPage");
           return const LoginPage();
         }
 
+        _logger.i("User logged in, UID: ${user.uid}");
         return FutureBuilder(
-          future: _checkAndCreateUserData(user),
-          builder: (context, snapshot) {
+          future: Future.wait([
+            _checkAndCreateUserData(user),
+            _checkAccountStatus(user.uid),
+          ]),
+          builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+            _logger.i("FutureBuilder state: ${snapshot.connectionState}");
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Scaffold(
                 body: Center(
@@ -278,7 +296,31 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
                 ),
               );
             }
-            return const MainPage();
+
+            if (snapshot.hasError) {
+              _logger.e("FutureBuilder error: ${snapshot.error}");
+              return Scaffold(
+                body: Center(
+                  child: Text("오류 발생: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+                ),
+              );
+            }
+
+            if (snapshot.hasData) {
+              bool isActive = snapshot.data![1] as bool;
+              _logger.i("isActive result: $isActive");
+              if (isActive) {
+                _logger.i("User is active, navigating to MainPage");
+                return const MainPage();
+              } else {
+                _logger.w("User is inactive, signing out and redirecting to LoginPage");
+                FirebaseAuth.instance.signOut();
+                return const LoginPage();
+              }
+            }
+
+            _logger.e("Unexpected state in FutureBuilder");
+            return const LoginPage();
           },
         );
       },

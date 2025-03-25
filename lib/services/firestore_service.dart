@@ -1,17 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:logger/logger.dart'; // Logger 추가
 import 'dart:io';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final Logger _logger = Logger(); // Logger 인스턴스 추가
 
   FirebaseFirestore get firestore => _firestore;
   String? get currentUserId => _auth.currentUser?.uid;
 
-  /// 단일 이미지 URL 유효성 검사 (via.placeholder.com 제외)
   String sanitizeProfileImage(String? profileImage) {
     if (profileImage == null || profileImage.contains('via.placeholder.com') || Uri.tryParse(profileImage)?.hasAbsolutePath != true) {
       return "";
@@ -19,7 +20,6 @@ class FirestoreService {
     return profileImage;
   }
 
-  /// 이미지 리스트 유효성 검사
   List<Map<String, dynamic>> sanitizeProfileImages(List<dynamic>? profileImages) {
     if (profileImages == null || profileImages.isEmpty) return [];
     return profileImages
@@ -40,12 +40,10 @@ class FirestoreService {
         .toList();
   }
 
-  /// 첫 번째 프로필 이미지 가져오기 (단일 이미지 필드 호환성을 위해)
   String getFirstProfileImage(List<Map<String, dynamic>> profileImages) {
     return profileImages.isNotEmpty ? profileImages.first['url'] : "";
   }
 
-  /// 프로필 이미지 업로드 및 Firestore에 추가
   Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
     try {
       String userId = _auth.currentUser!.uid;
@@ -76,12 +74,11 @@ class FirestoreService {
 
       return {'url': downloadUrl, 'timestamp': timestamp};
     } catch (e) {
-      print("❌ 프로필 이미지 업로드 중 오류 발생: $e");
+      _logger.e("❌ 프로필 이미지 업로드 중 오류 발생: $e");
       throw Exception("프로필 이미지 업로드 실패: $e");
     }
   }
 
-  /// 프로필 이미지 삭제
   Future<void> deleteProfileImage(String imageUrl) async {
     try {
       String userId = _auth.currentUser!.uid;
@@ -108,12 +105,11 @@ class FirestoreService {
         'mainProfileImage': mainProfileImage,
       });
     } catch (e) {
-      print("❌ 프로필 이미지 삭제 중 오류 발생: $e");
+      _logger.e("❌ 프로필 이미지 삭제 중 오류 발생: $e");
       throw Exception("프로필 이미지 삭제 실패: $e");
     }
   }
 
-  /// Firestore 데이터 마이그레이션: 기존 profileImages -> 새로운 형식
   Future<void> migrateProfileImagesToNewFormat() async {
     try {
       QuerySnapshot usersSnapshot = await _firestore.collection("users").get();
@@ -132,18 +128,17 @@ class FirestoreService {
               'profileImages': newProfileImages,
               'mainProfileImage': newProfileImages.last['url'],
             });
-            print("✅ 사용자 ${userDoc.id}의 프로필 이미지 마이그레이션 완료");
+            _logger.i("✅ 사용자 ${userDoc.id}의 프로필 이미지 마이그레이션 완료");
           }
         }
       }
-      print("✅ 모든 사용자 프로필 이미지 마이그레이션 완료");
+      _logger.i("✅ 모든 사용자 프로필 이미지 마이그레이션 완료");
     } catch (e) {
-      print("❌ Firestore 데이터 마이그레이션 중 오류 발생: $e");
+      _logger.e("❌ Firestore 데이터 마이그레이션 중 오류 발생: $e");
       throw Exception("Firestore 데이터 마이그레이션 실패: $e");
     }
   }
 
-  /// 대표 이미지 설정
   Future<void> setMainProfileImage(String? imageUrl) async {
     try {
       String userId = _auth.currentUser!.uid;
@@ -152,12 +147,11 @@ class FirestoreService {
         'mainProfileImage': imageUrl,
       });
     } catch (e) {
-      print("❌ 대표 이미지 설정 중 오류 발생: $e");
+      _logger.e("❌ 대표 이미지 설정 중 오류 발생: $e");
       throw Exception("대표 이미지 설정 실패: $e");
     }
   }
 
-  /// 오프라인 모드 설정
   Future<void> setOfflineMode(bool isOfflineMode) async {
     try {
       String userId = _auth.currentUser!.uid;
@@ -165,50 +159,50 @@ class FirestoreService {
       await userRef.update({
         'isOfflineMode': isOfflineMode,
       });
-      // 오프라인 모드가 활성화되면 status를 즉시 "offline"으로 설정
       if (isOfflineMode) {
         await userRef.update({
           'status': "offline",
         });
       }
     } catch (e) {
-      print("❌ 오프라인 모드 설정 중 오류 발생: $e");
+      _logger.e("❌ 오프라인 모드 설정 중 오류 발생: $e");
       throw Exception("오프라인 모드 설정 실패: $e");
     }
   }
 
-  /// 유저 상태 업데이트 (온라인/오프라인)
   Future<void> updateUserStatus(bool isOnline) async {
     try {
       String userId = _auth.currentUser!.uid;
+      _logger.i("Updating user status for UID: $userId to ${isOnline ? 'online' : 'offline'}");
       DocumentReference userRef = _firestore.collection("users").doc(userId);
       DocumentSnapshot userDoc = await userRef.get();
       Map<String, dynamic>? userData = userDoc.data() as Map<String, dynamic>?;
 
       if (userData == null) {
+        _logger.w("User data not found for UID: $userId");
         throw Exception("유저 데이터를 찾을 수 없습니다.");
       }
 
       bool isOfflineMode = userData["isOfflineMode"] ?? false;
+      _logger.i("isOfflineMode: $isOfflineMode");
 
-      // 오프라인 모드가 활성화되어 있으면 status를 항상 "offline"으로 설정
       if (isOfflineMode) {
         await userRef.update({
           'status': "offline",
         });
+        _logger.i("User status set to offline due to offline mode");
       } else {
-        // 오프라인 모드가 비활성화되어 있으면 isOnline 값에 따라 status 업데이트
         await userRef.update({
           'status': isOnline ? "online" : "offline",
         });
+        _logger.i("User status updated to ${isOnline ? 'online' : 'offline'}");
       }
     } catch (e) {
-      print("❌ 유저 상태 업데이트 중 오류 발생: $e");
+      _logger.e("❌ 유저 상태 업데이트 중 오류 발생: $e");
       throw Exception("유저 상태 업데이트 실패: $e");
     }
   }
 
-  /// 특정 유저의 차단 상태 실시간 감지
   Stream<bool> listenToBlockedStatus(String userId) {
     String currentUserId = _auth.currentUser!.uid;
     return _firestore
@@ -220,7 +214,6 @@ class FirestoreService {
         .map((snapshot) => snapshot.exists);
   }
 
-  /// Firestore에서 차단된 사용자 목록 실시간 감지
   Stream<List<Map<String, dynamic>>> listenToBlockedUsers() {
     String currentUserId = _auth.currentUser!.uid;
     return _firestore
@@ -242,13 +235,13 @@ class FirestoreService {
     });
   }
 
-  /// 차단/차단 해제
   Future<void> toggleBlockUser(String userId, String nickname, List<Map<String, dynamic>> profileImages) async {
     String currentUserId = _auth.currentUser!.uid;
     DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
     DocumentSnapshot blockDoc = await blockRef.get();
 
-    DocumentSnapshot userDoc = await _firestore.collection("users").doc(userId).get();
+    DocumentReference userRef = _firestore.collection("users").doc(userId);
+    DocumentSnapshot userDoc = await userRef.get();
     if (!userDoc.exists) {
       throw Exception("유저 정보를 찾을 수 없습니다.");
     }
@@ -256,6 +249,16 @@ class FirestoreService {
 
     if (blockDoc.exists) {
       await blockRef.delete();
+      await _firestore.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(userRef);
+        if (snapshot.exists) {
+          int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
+          int newBlockedByCount = currentBlockedByCount > 0 ? currentBlockedByCount - 1 : 0;
+          transaction.update(userRef, {
+            "blockedByCount": newBlockedByCount,
+          });
+        }
+      });
     } else {
       await blockRef.set({
         "blockedUserId": userId,
@@ -265,13 +268,61 @@ class FirestoreService {
         "status": userData["status"] ?? "offline",
         "timestamp": FieldValue.serverTimestamp(),
       });
+
+      await _firestore.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(userRef);
+        if (snapshot.exists) {
+          int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
+          int newBlockedByCount = currentBlockedByCount + 1;
+
+          transaction.update(userRef, {
+            "blockedByCount": newBlockedByCount,
+          });
+
+          if (newBlockedByCount >= 10) {
+            transaction.update(userRef, {
+              "isActive": false,
+            });
+          }
+        } else {
+          transaction.set(userRef, {
+            "blockedByCount": 1,
+            "isActive": true,
+          }, SetOptions(merge: true));
+        }
+      });
     }
   }
 
-  /// 차단 해제
   Future<void> unblockUser(String userId) async {
     String currentUserId = _auth.currentUser!.uid;
-    await _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId).delete();
+    DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
+    DocumentReference userRef = _firestore.collection("users").doc(userId);
+
+    await blockRef.delete();
+
+    await _firestore.runTransaction((transaction) async {
+      DocumentSnapshot snapshot = await transaction.get(userRef);
+      if (snapshot.exists) {
+        int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
+        int newBlockedByCount = currentBlockedByCount > 0 ? currentBlockedByCount - 1 : 0;
+        transaction.update(userRef, {
+          "blockedByCount": newBlockedByCount,
+        });
+      }
+    });
+  }
+
+  Future<bool> isUserActive(String userId) async {
+    try {
+      DocumentSnapshot userDoc = await _firestore.collection("users").doc(userId).get();
+      bool isActive = userDoc.exists && (userDoc["isActive"] ?? true);
+      _logger.i("isUserActive for UID: $userId, result: $isActive");
+      return isActive;
+    } catch (e) {
+      _logger.e("Error in isUserActive: $e");
+      return true; // 기본값 true 반환
+    }
   }
 
   Future<void> incrementProfileViews(String userId) async {
@@ -323,7 +374,7 @@ class FirestoreService {
   Future<Map<String, dynamic>?> getUserData({String? userId}) async {
     userId ??= currentUserId;
     if (userId == null) {
-      print("❌ 오류: 로그인되지 않은 상태에서 유저 정보를 요청했습니다.");
+      _logger.w("❌ 오류: 로그인되지 않은 상태에서 유저 정보를 요청했습니다.");
       return null;
     }
     try {
@@ -336,10 +387,12 @@ class FirestoreService {
       userData["friendCount"] = userData.containsKey("friendCount") ? userData["friendCount"] : 0;
       userData["rating"] = userData.containsKey("rating") ? userData["rating"] : 0;
       userData["profileImages"] = userData.containsKey("profileImages") ? userData["profileImages"] : [];
-      userData["mainProfileImage"] = userData.containsKey("mainProfileImage") ? userData["mainProfileImage"] : (userData["profileImages"].isNotEmpty ? userData["profileImages"].last['url'] : null);
+      userData["mainProfileImage"] = userData.containsKey("mainProfileImage")
+          ? userData["mainProfileImage"]
+          : (userData["profileImages"].isNotEmpty ? userData["profileImages"].last['url'] : null);
       return userData;
     } catch (e) {
-      print("❌ Firestore에서 유저 정보를 불러오는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 유저 정보를 불러오는 중 오류 발생: $e");
       return null;
     }
   }
@@ -384,16 +437,11 @@ class FirestoreService {
 
   Future<void> updateFriendCount(String userId) async {
     try {
-      QuerySnapshot friendSnapshot = await _firestore
-          .collection("users")
-          .doc(userId)
-          .collection("friends")
-          .get();
-
+      QuerySnapshot friendSnapshot = await _firestore.collection("users").doc(userId).collection("friends").get();
       int friendCount = friendSnapshot.docs.length;
       await _firestore.collection("users").doc(userId).update({"friendCount": friendCount});
     } catch (e) {
-      print("❌ Firestore에서 friendCount 업데이트 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 friendCount 업데이트 중 오류 발생: $e");
     }
   }
 
@@ -416,7 +464,7 @@ class FirestoreService {
     try {
       await _firestore.collection("users").doc(userId).update(newData);
     } catch (e) {
-      print("❌ Firestore에서 유저 정보를 업데이트하는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 유저 정보를 업데이트하는 중 오류 발생: $e");
     }
   }
 
@@ -427,7 +475,7 @@ class FirestoreService {
         return List<String>.from(doc.data()!["boards"]);
       }
     } catch (e) {
-      print("❌ Firestore에서 다트보드 목록을 불러오는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 다트보드 목록을 불러오는 중 오류 발생: $e");
     }
     return ["다트라이브", "피닉스", "그란보드", "홈보드"];
   }
@@ -439,7 +487,7 @@ class FirestoreService {
         return doc.data()!["maxRating"] ?? 20;
       }
     } catch (e) {
-      print("❌ Firestore에서 최대 레이팅 값을 가져오는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 최대 레이팅 값을 가져오는 중 오류 발생: $e");
     }
     return 20;
   }
@@ -453,7 +501,7 @@ class FirestoreService {
         "lastLogoutTime": FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print("❌ Firestore에서 로그아웃 정보 업데이트 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 로그아웃 정보 업데이트 중 오류 발생: $e");
     }
   }
 
@@ -464,7 +512,7 @@ class FirestoreService {
       QuerySnapshot snapshot = await _firestore.collection("users").doc(userId).collection("blockedUsers").get();
       return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
     } catch (e) {
-      print("❌ Firestore에서 차단된 유저 목록을 불러오는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 차단된 유저 목록을 불러오는 중 오류 발생: $e");
       return [];
     }
   }
@@ -494,27 +542,19 @@ class FirestoreService {
     if (userId == null) return;
 
     try {
-      await _firestore
-          .collection("users")
-          .doc(userId)
-          .collection("friendRequests")
-          .doc(friendId)
-          .delete();
-
+      await _firestore.collection("users").doc(userId).collection("friendRequests").doc(friendId).delete();
       await _firestore.collection("users").doc(userId).collection("friends").doc(friendId).set({
         "userId": friendId,
         "addedAt": FieldValue.serverTimestamp(),
       });
-
       await _firestore.collection("users").doc(friendId).collection("friends").doc(userId).set({
         "userId": userId,
         "addedAt": FieldValue.serverTimestamp(),
       });
-
       await _firestore.collection("users").doc(userId).update({"friendCount": FieldValue.increment(1)});
       await _firestore.collection("users").doc(friendId).update({"friendCount": FieldValue.increment(1)});
     } catch (e) {
-      print("❌ Firestore에서 친구 요청 승인 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 친구 요청 승인 중 오류 발생: $e");
     }
   }
 
@@ -523,14 +563,9 @@ class FirestoreService {
     if (userId == null) return;
 
     try {
-      await _firestore
-          .collection("users")
-          .doc(userId)
-          .collection("friendRequests")
-          .doc(friendId)
-          .delete();
+      await _firestore.collection("users").doc(userId).collection("friendRequests").doc(friendId).delete();
     } catch (e) {
-      print("❌ Firestore에서 친구 요청 거절 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 친구 요청 거절 중 오류 발생: $e");
     }
   }
 
@@ -541,7 +576,7 @@ class FirestoreService {
       QuerySnapshot snapshot = await _firestore.collection("users").doc(userId).collection("friends").get();
       return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
     } catch (e) {
-      print("❌ Firestore에서 친구 목록을 불러오는 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 친구 목록을 불러오는 중 오류 발생: $e");
       return [];
     }
   }
@@ -556,7 +591,7 @@ class FirestoreService {
       await updateFriendCount(userId);
       await updateFriendCount(friendId);
     } catch (e) {
-      print("❌ Firestore에서 친구 삭제 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 친구 삭제 중 오류 발생: $e");
     }
   }
 
@@ -565,7 +600,7 @@ class FirestoreService {
       QuerySnapshot result = await _firestore.collection("users").where("nickname", isEqualTo: nickname).limit(1).get();
       return result.docs.isEmpty;
     } catch (e) {
-      print("❌ Firestore에서 닉네임 중복 검사 중 오류 발생: $e");
+      _logger.e("❌ Firestore에서 닉네임 중복 검사 중 오류 발생: $e");
       return false;
     }
   }
