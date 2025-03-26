@@ -1,14 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:logger/logger.dart'; // Logger 추가
+import 'package:logger/logger.dart';
 import 'dart:io';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final Logger _logger = Logger(); // Logger 인스턴스 추가
+  final Logger _logger = Logger();
 
   FirebaseFirestore get firestore => _firestore;
   String? get currentUserId => _auth.currentUser?.uid;
@@ -72,6 +72,7 @@ class FirestoreService {
         'mainProfileImage': downloadUrl,
       });
 
+      _logger.i("✅ 프로필 이미지 업로드 완료: $downloadUrl");
       return {'url': downloadUrl, 'timestamp': timestamp};
     } catch (e) {
       _logger.e("❌ 프로필 이미지 업로드 중 오류 발생: $e");
@@ -95,15 +96,16 @@ class FirestoreService {
 
       String? mainProfileImage = userData['mainProfileImage'];
       if (mainProfileImage == imageUrl) {
-        mainProfileImage = profileImages.isNotEmpty ? profileImages.last['url'] : null;
+        mainProfileImage = profileImages.isNotEmpty ? profileImages.last['url'] : "";
       }
 
       await _storage.refFromURL(imageUrl).delete();
-
       await userRef.update({
         'profileImages': profileImages,
         'mainProfileImage': mainProfileImage,
       });
+
+      _logger.i("✅ 프로필 이미지 삭제 완료: $imageUrl");
     } catch (e) {
       _logger.e("❌ 프로필 이미지 삭제 중 오류 발생: $e");
       throw Exception("프로필 이미지 삭제 실패: $e");
@@ -144,8 +146,9 @@ class FirestoreService {
       String userId = _auth.currentUser!.uid;
       DocumentReference userRef = _firestore.collection("users").doc(userId);
       await userRef.update({
-        'mainProfileImage': imageUrl,
+        'mainProfileImage': imageUrl ?? "",
       });
+      _logger.i("✅ 대표 이미지 설정 완료: $imageUrl");
     } catch (e) {
       _logger.e("❌ 대표 이미지 설정 중 오류 발생: $e");
       throw Exception("대표 이미지 설정 실패: $e");
@@ -164,6 +167,7 @@ class FirestoreService {
           'status': "offline",
         });
       }
+      _logger.i("✅ 오프라인 모드 설정 완료: $isOfflineMode");
     } catch (e) {
       _logger.e("❌ 오프라인 모드 설정 중 오류 발생: $e");
       throw Exception("오프라인 모드 설정 실패: $e");
@@ -236,81 +240,100 @@ class FirestoreService {
   }
 
   Future<void> toggleBlockUser(String userId, String nickname, List<Map<String, dynamic>> profileImages) async {
-    String currentUserId = _auth.currentUser!.uid;
-    DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
-    DocumentSnapshot blockDoc = await blockRef.get();
+    try {
+      String currentUserId = _auth.currentUser!.uid;
+      DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
+      DocumentSnapshot blockDoc = await blockRef.get();
 
-    DocumentReference userRef = _firestore.collection("users").doc(userId);
-    DocumentSnapshot userDoc = await userRef.get();
-    if (!userDoc.exists) {
-      throw Exception("유저 정보를 찾을 수 없습니다.");
+      DocumentReference userRef = _firestore.collection("users").doc(userId);
+      DocumentSnapshot userDoc = await userRef.get();
+      if (!userDoc.exists) {
+        throw Exception("유저 정보를 찾을 수 없습니다.");
+      }
+      var userData = userDoc.data() as Map<String, dynamic>;
+
+      if (blockDoc.exists) {
+        // 차단 해제
+        await blockRef.delete();
+        await _firestore.runTransaction((transaction) async {
+          DocumentSnapshot snapshot = await transaction.get(userRef);
+          if (snapshot.exists) {
+            final data = snapshot.data() as Map<String, dynamic>? ?? {};
+            int currentBlockedByCount = data.containsKey("blockedByCount") ? (data["blockedByCount"] as int? ?? 0) : 0;
+            int newBlockedByCount = currentBlockedByCount > 0 ? currentBlockedByCount - 1 : 0;
+            transaction.update(userRef, {
+              "blockedByCount": newBlockedByCount,
+            });
+          }
+        });
+        _logger.i("✅ 사용자 $userId 차단 해제 완료");
+      } else {
+        // 차단 추가
+        await blockRef.set({
+          "blockedUserId": userId,
+          "nickname": nickname,
+          "profileImages": profileImages,
+          "mainProfileImage": profileImages.isNotEmpty ? profileImages.last['url'] : "",
+          "status": userData["status"] ?? "offline",
+          "timestamp": FieldValue.serverTimestamp(),
+        });
+
+        await _firestore.runTransaction((transaction) async {
+          DocumentSnapshot snapshot = await transaction.get(userRef);
+          if (snapshot.exists) {
+            final data = snapshot.data() as Map<String, dynamic>? ?? {};
+            int currentBlockedByCount = data.containsKey("blockedByCount") ? (data["blockedByCount"] as int? ?? 0) : 0;
+            int newBlockedByCount = currentBlockedByCount + 1;
+
+            transaction.update(userRef, {
+              "blockedByCount": newBlockedByCount,
+            });
+
+            if (newBlockedByCount >= 10) {
+              transaction.update(userRef, {
+                "isActive": false,
+              });
+              _logger.w("⚠️ 사용자 $userId가 10회 이상 차단되어 계정 비활성화됨");
+            }
+          } else {
+            transaction.set(userRef, {
+              "blockedByCount": 1,
+              "isActive": true,
+            }, SetOptions(merge: true));
+          }
+        });
+        _logger.i("✅ 사용자 $userId 차단 완료");
+      }
+    } catch (e) {
+      _logger.e("❌ 사용자 차단/해제 중 오류 발생: $e");
+      throw Exception("사용자 차단/해제 실패: $e");
     }
-    var userData = userDoc.data() as Map<String, dynamic>;
+  }
 
-    if (blockDoc.exists) {
+  Future<void> unblockUser(String userId) async {
+    try {
+      String currentUserId = _auth.currentUser!.uid;
+      DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
+      DocumentReference userRef = _firestore.collection("users").doc(userId);
+
       await blockRef.delete();
+
       await _firestore.runTransaction((transaction) async {
         DocumentSnapshot snapshot = await transaction.get(userRef);
         if (snapshot.exists) {
-          int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
+          final data = snapshot.data() as Map<String, dynamic>? ?? {};
+          int currentBlockedByCount = data.containsKey("blockedByCount") ? (data["blockedByCount"] as int? ?? 0) : 0;
           int newBlockedByCount = currentBlockedByCount > 0 ? currentBlockedByCount - 1 : 0;
           transaction.update(userRef, {
             "blockedByCount": newBlockedByCount,
           });
         }
       });
-    } else {
-      await blockRef.set({
-        "blockedUserId": userId,
-        "nickname": nickname,
-        "profileImages": profileImages,
-        "mainProfileImage": profileImages.isNotEmpty ? profileImages.last['url'] : "",
-        "status": userData["status"] ?? "offline",
-        "timestamp": FieldValue.serverTimestamp(),
-      });
-
-      await _firestore.runTransaction((transaction) async {
-        DocumentSnapshot snapshot = await transaction.get(userRef);
-        if (snapshot.exists) {
-          int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
-          int newBlockedByCount = currentBlockedByCount + 1;
-
-          transaction.update(userRef, {
-            "blockedByCount": newBlockedByCount,
-          });
-
-          if (newBlockedByCount >= 10) {
-            transaction.update(userRef, {
-              "isActive": false,
-            });
-          }
-        } else {
-          transaction.set(userRef, {
-            "blockedByCount": 1,
-            "isActive": true,
-          }, SetOptions(merge: true));
-        }
-      });
+      _logger.i("✅ 사용자 $userId 차단 해제 완료");
+    } catch (e) {
+      _logger.e("❌ 사용자 차단 해제 중 오류 발생: $e");
+      throw Exception("사용자 차단 해제 실패: $e");
     }
-  }
-
-  Future<void> unblockUser(String userId) async {
-    String currentUserId = _auth.currentUser!.uid;
-    DocumentReference blockRef = _firestore.collection("users").doc(currentUserId).collection("blockedUsers").doc(userId);
-    DocumentReference userRef = _firestore.collection("users").doc(userId);
-
-    await blockRef.delete();
-
-    await _firestore.runTransaction((transaction) async {
-      DocumentSnapshot snapshot = await transaction.get(userRef);
-      if (snapshot.exists) {
-        int currentBlockedByCount = snapshot["blockedByCount"] ?? 0;
-        int newBlockedByCount = currentBlockedByCount > 0 ? currentBlockedByCount - 1 : 0;
-        transaction.update(userRef, {
-          "blockedByCount": newBlockedByCount,
-        });
-      }
-    });
   }
 
   Future<bool> isUserActive(String userId) async {
@@ -330,30 +353,51 @@ class FirestoreService {
     if (currentUserId == null || currentUserId == userId) return;
 
     DocumentReference userRef = _firestore.collection("users").doc(userId);
+    DocumentReference viewRef = userRef.collection("profile_views").doc(currentUserId);
 
     await _firestore.runTransaction((transaction) async {
-      DocumentSnapshot snapshot = await transaction.get(userRef);
-      if (!snapshot.exists) return;
+      DocumentSnapshot userSnapshot = await transaction.get(userRef);
+      if (!userSnapshot.exists) return;
 
-      Map<String, dynamic>? userData = snapshot.data() as Map<String, dynamic>?;
+      Map<String, dynamic>? userData = userSnapshot.data() as Map<String, dynamic>?;
       if (userData == null) return;
+
+      DocumentSnapshot viewSnapshot = await transaction.get(viewRef);
+      DateTime now = DateTime.now();
+      DateTime todayStart = DateTime(now.year, now.month, now.day);
 
       int totalViews = userData["totalViews"] ?? 0;
       int todayViews = userData["todayViews"] ?? 0;
-      DateTime lastViewDate = userData["lastViewDate"]?.toDate() ?? DateTime.now();
-      DateTime now = DateTime.now();
+      DateTime lastViewDate = userData["lastViewDate"]?.toDate() ?? DateTime(2000);
 
-      if (now.difference(lastViewDate).inDays >= 1) {
-        todayViews = 1;
-      } else {
-        todayViews += 1;
+      // 하루 초기화 체크
+      if (todayStart.isAfter(lastViewDate)) {
+        todayViews = 0;
       }
 
+      // 중복 조회 체크
+      if (viewSnapshot.exists) {
+        Timestamp lastViewedAt = viewSnapshot["viewedAt"];
+        DateTime lastViewedDate = lastViewedAt.toDate();
+        if (lastViewedDate.isAfter(todayStart)) {
+          return; // 오늘 이미 조회했으면 증가하지 않음
+        }
+      }
+
+      // 조회 기록 업데이트
+      transaction.set(viewRef, {
+        "viewedAt": FieldValue.serverTimestamp(),
+        "viewerId": currentUserId,
+      });
+
+      // 통계 증가
       transaction.update(userRef, {
         "totalViews": totalViews + 1,
-        "todayViews": todayViews,
+        "todayViews": todayViews + 1,
         "lastViewDate": now,
       });
+
+      _logger.i("Profile views incremented for userId: $userId by viewerId: $currentUserId");
     });
   }
 
@@ -389,7 +433,7 @@ class FirestoreService {
       userData["profileImages"] = userData.containsKey("profileImages") ? userData["profileImages"] : [];
       userData["mainProfileImage"] = userData.containsKey("mainProfileImage")
           ? userData["mainProfileImage"]
-          : (userData["profileImages"].isNotEmpty ? userData["profileImages"].last['url'] : null);
+          : (userData["profileImages"].isNotEmpty ? userData["profileImages"].last['url'] : "");
       return userData;
     } catch (e) {
       _logger.e("❌ Firestore에서 유저 정보를 불러오는 중 오류 발생: $e");
@@ -433,6 +477,7 @@ class FirestoreService {
       "profileImages": profileImages,
       "timestamp": FieldValue.serverTimestamp(),
     });
+    _logger.i("✅ 친구 요청 전송 완료: $targetUserId");
   }
 
   Future<void> updateFriendCount(String userId) async {
@@ -440,6 +485,7 @@ class FirestoreService {
       QuerySnapshot friendSnapshot = await _firestore.collection("users").doc(userId).collection("friends").get();
       int friendCount = friendSnapshot.docs.length;
       await _firestore.collection("users").doc(userId).update({"friendCount": friendCount});
+      _logger.i("✅ 친구 수 업데이트 완료: $userId, friendCount: $friendCount");
     } catch (e) {
       _logger.e("❌ Firestore에서 friendCount 업데이트 중 오류 발생: $e");
     }
@@ -463,6 +509,7 @@ class FirestoreService {
     if (userId == null) return;
     try {
       await _firestore.collection("users").doc(userId).update(newData);
+      _logger.i("✅ 유저 데이터 업데이트 완료: $userId");
     } catch (e) {
       _logger.e("❌ Firestore에서 유저 정보를 업데이트하는 중 오류 발생: $e");
     }
@@ -500,6 +547,7 @@ class FirestoreService {
         "isOnline": false,
         "lastLogoutTime": FieldValue.serverTimestamp(),
       });
+      _logger.i("✅ 로그아웃 정보 업데이트 완료: $userId");
     } catch (e) {
       _logger.e("❌ Firestore에서 로그아웃 정보 업데이트 중 오류 발생: $e");
     }
@@ -553,6 +601,7 @@ class FirestoreService {
       });
       await _firestore.collection("users").doc(userId).update({"friendCount": FieldValue.increment(1)});
       await _firestore.collection("users").doc(friendId).update({"friendCount": FieldValue.increment(1)});
+      _logger.i("✅ 친구 요청 승인 완료: $friendId");
     } catch (e) {
       _logger.e("❌ Firestore에서 친구 요청 승인 중 오류 발생: $e");
     }
@@ -564,6 +613,7 @@ class FirestoreService {
 
     try {
       await _firestore.collection("users").doc(userId).collection("friendRequests").doc(friendId).delete();
+      _logger.i("✅ 친구 요청 거절 완료: $friendId");
     } catch (e) {
       _logger.e("❌ Firestore에서 친구 요청 거절 중 오류 발생: $e");
     }
@@ -590,6 +640,7 @@ class FirestoreService {
       await _firestore.collection("users").doc(friendId).collection("friends").doc(userId).delete();
       await updateFriendCount(userId);
       await updateFriendCount(friendId);
+      _logger.i("✅ 친구 삭제 완료: $friendId");
     } catch (e) {
       _logger.e("❌ Firestore에서 친구 삭제 중 오류 발생: $e");
     }

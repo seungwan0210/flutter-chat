@@ -1,0 +1,9 @@
+{
+  "appTitle": "DartsChat",
+  "home": "Home",
+  "friends": "Friends",
+  "onlineUsers": "Online Users",
+  "offlineUsers": "Offline Users",
+  "login": "Login",
+  "profile": "Profile"
+}

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:logger/logger.dart';
 import 'chat_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 import 'package:dartschat/pages/settings/blocked_users_page.dart';
+import 'package:dartschat/pages/main_page.dart'; // MainPage 임포트
 
 class FriendInfoPage extends StatefulWidget {
   final String receiverId;
@@ -23,118 +25,160 @@ class FriendInfoPage extends StatefulWidget {
 }
 
 class _FriendInfoPageState extends State<FriendInfoPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final Logger _logger = Logger();
 
   bool _isLoading = true;
   Map<String, dynamic>? _friendData;
   bool _isFavorite = false;
   int totalViews = 0;
   int dailyViews = 0;
-  String _rank = "💀"; // 초기값을 해골로 설정
+  String _rank = "💀";
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
   bool _isBlocked = false;
-  bool _isDiamond = false; // 다이아 등급 여부
-  bool _isActive = true; // 계정 활성화 상태
+  bool _isDiamond = false;
+  bool _isActive = true;
 
   @override
   void initState() {
     super.initState();
     _loadFriendInfo();
     _checkFavoriteStatus();
-    // 차단 상태 확인
-    _firestoreService.listenToBlockedStatus(widget.receiverId).listen((isBlocked) {
-      setState(() {
-        _isBlocked = isBlocked;
-      });
-    });
+    _firestoreService.listenToBlockedStatus(widget.receiverId).listen(
+          (isBlocked) {
+        if (mounted) {
+          setState(() {
+            _isBlocked = isBlocked;
+          });
+        }
+      },
+      onError: (e) => _logger.e("Error listening to blocked status: $e"),
+    );
+    _logger.i("FriendInfoPage initState called for receiverId: ${widget.receiverId}");
+  }
+
+  @override
+  void dispose() {
+    _logger.i("FriendInfoPage dispose called for receiverId: ${widget.receiverId}");
+    super.dispose();
   }
 
   Future<void> _loadFriendInfo() async {
     try {
-      DocumentSnapshot friendSnapshot = await _firestore.collection("users").doc(widget.receiverId).get();
-
-      if (friendSnapshot.exists) {
-        setState(() {
-          _friendData = friendSnapshot.data() as Map<String, dynamic>?;
-          totalViews = _friendData!["totalViews"] ?? 0;
-          dailyViews = _friendData!["todayViews"] ?? 0;
-          _isDiamond = _friendData!["isDiamond"] ?? false;
-          _rank = _calculateRank(totalViews, _isDiamond);
-          _profileImages = _firestoreService.sanitizeProfileImages(_friendData!["profileImages"] ?? []);
-          _mainProfileImage = _friendData!["mainProfileImage"];
-          _isActive = _friendData!["isActive"] ?? true; // 계정 활성화 상태 설정
-          _isLoading = false;
-        });
+      Map<String, dynamic>? friendData = await _firestoreService.getUserData(userId: widget.receiverId);
+      if (friendData != null) {
+        if (mounted) {
+          setState(() {
+            _friendData = friendData;
+            totalViews = _friendData!["totalViews"] ?? 0;
+            dailyViews = _friendData!["todayViews"] ?? 0;
+            _isDiamond = _friendData!["isDiamond"] ?? false;
+            _rank = _calculateRank(totalViews, _isDiamond);
+            _profileImages = _firestoreService.sanitizeProfileImages(_friendData!["profileImages"] ?? []);
+            _mainProfileImage = _friendData!["mainProfileImage"];
+            _isActive = _friendData!["isActive"] ?? true;
+            _isLoading = false;
+          });
+        }
+        _logger.i("Friend info loaded for receiverId: ${widget.receiverId}");
       } else {
+        if (mounted) {
+          setState(() {
+            _friendData = null;
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("친구 정보를 불러올 수 없습니다.")),
+          );
+        }
+      }
+    } catch (e) {
+      _logger.e("Error loading friend info: $e");
+      if (mounted) {
         setState(() {
           _friendData = null;
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구 정보를 불러올 수 없습니다.")),
+          SnackBar(content: Text("친구 정보 불러오기 실패: $e")),
         );
       }
-    } catch (e) {
-      setState(() {
-        _friendData = null;
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("친구 정보 불러오기 실패: $e")),
-      );
     }
   }
 
   Future<void> _checkFavoriteStatus() async {
-    String currentUserId = _auth.currentUser!.uid;
-    DocumentSnapshot favoriteDoc = await _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .collection("favorites")
-        .doc(widget.receiverId)
-        .get();
-    setState(() {
-      _isFavorite = favoriteDoc.exists;
-    });
+    try {
+      String currentUserId = _auth.currentUser!.uid;
+      DocumentSnapshot favoriteDoc = await _firestoreService.firestore
+          .collection("users")
+          .doc(currentUserId)
+          .collection("favorites")
+          .doc(widget.receiverId)
+          .get();
+      if (mounted) {
+        setState(() {
+          _isFavorite = favoriteDoc.exists;
+        });
+      }
+      _logger.i("Favorite status checked: isFavorite=$_isFavorite for receiverId: ${widget.receiverId}");
+    } catch (e) {
+      _logger.e("Error checking favorite status: $e");
+    }
   }
 
   Future<void> _toggleFavorite() async {
     if (!_isActive) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("비활성화된 계정은 즐겨찾기에 추가할 수 없습니다.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("비활성화된 계정은 즐겨찾기에 추가할 수 없습니다.")),
+        );
+      }
       return;
     }
 
-    String currentUserId = _auth.currentUser!.uid;
-    if (_isFavorite) {
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("favorites")
-          .doc(widget.receiverId)
-          .delete();
-    } else {
-      await _firestore
-          .collection("users")
-          .doc(currentUserId)
-          .collection("favorites")
-          .doc(widget.receiverId)
-          .set({});
+    try {
+      String currentUserId = _auth.currentUser!.uid;
+      if (_isFavorite) {
+        await _firestoreService.firestore
+            .collection("users")
+            .doc(currentUserId)
+            .collection("favorites")
+            .doc(widget.receiverId)
+            .delete();
+        _logger.i("Removed from favorites: receiverId: ${widget.receiverId}");
+      } else {
+        await _firestoreService.firestore
+            .collection("users")
+            .doc(currentUserId)
+            .collection("favorites")
+            .doc(widget.receiverId)
+            .set({});
+        _logger.i("Added to favorites: receiverId: ${widget.receiverId}");
+      }
+      if (mounted) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+        });
+      }
+    } catch (e) {
+      _logger.e("Error toggling favorite status: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("즐겨찾기 설정 실패: $e")),
+        );
+      }
     }
-    setState(() {
-      _isFavorite = !_isFavorite;
-    });
   }
 
   void _startChat() {
     if (!_isActive) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
+        );
+      }
       return;
     }
 
@@ -159,8 +203,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   }
 
   Future<void> _removeFriend() async {
-    String currentUserId = _auth.currentUser!.uid;
-
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -182,29 +224,26 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     if (confirm == true) {
       try {
         await _firestoreService.removeFriend(widget.receiverId);
-        await _firestore
-            .collection("users")
-            .doc(currentUserId)
-            .collection("favorites")
-            .doc(widget.receiverId)
-            .delete();
-
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
+        }
+        _logger.i("Friend removed: receiverId: ${widget.receiverId}");
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+        _logger.e("Error removing friend: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+        }
       }
     }
   }
 
   Future<void> _blockFriend() async {
-    String currentUserId = _auth.currentUser!.uid;
-
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("사용자 차단"),
-        content: const Text("사용자를 차단하시겠습니까?"),
+        content: const Text("사용자를 차단하시겠습니까? 차단 시 친구 관계도 해제됩니다."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -220,47 +259,54 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
 
     if (confirm == true) {
       try {
-        await _firestoreService.toggleBlockUser(widget.receiverId, widget.receiverName, _profileImages);
+        // 친구 관계 해제
         await _firestoreService.removeFriend(widget.receiverId);
-        await _firestore
+        // 사용자 차단
+        await _firestoreService.toggleBlockUser(widget.receiverId, widget.receiverName, _profileImages);
+        // 즐겨찾기 삭제 (있는 경우)
+        await _firestoreService.firestore
             .collection("users")
-            .doc(currentUserId)
+            .doc(_auth.currentUser!.uid)
             .collection("favorites")
             .doc(widget.receiverId)
             .delete();
 
-        // 차단 후 Firestore에서 최신 상태를 가져와 UI 업데이트
-        DocumentReference userRef = _firestore.collection("users").doc(widget.receiverId);
-        DocumentSnapshot userSnapshot = await userRef.get();
-        if (userSnapshot.exists) {
+        bool isActive = await _firestoreService.isUserActive(widget.receiverId);
+        if (mounted) {
           setState(() {
-            _isActive = userSnapshot["isActive"] ?? true; // 계정 활성화 상태 업데이트
+            _isActive = isActive;
+            _isBlocked = true;
           });
+          // HomePage로 이동 (MainPage의 initialIndex를 0으로 설정)
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 0)),
+                (Route<dynamic> route) => false,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("사용자가 차단되었습니다.")));
         }
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const BlockedUsersPage()),
-        );
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("사용자가 차단되었습니다.")));
+        _logger.i("Friend blocked and removed: receiverId: ${widget.receiverId}");
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+        _logger.e("Error blocking friend: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+        }
       }
     }
   }
 
   String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎"; // 다이아 (어드민 지정)
-    if (totalViews >= 20000) return "✨"; // 금별
-    if (totalViews >= 10000) return "⭐"; // 은별
-    if (totalViews >= 5000) return "🌟"; // 동별
-    if (totalViews >= 3000) return "🏆"; // 금훈장
-    if (totalViews >= 2500) return "🏅"; // 은훈장
-    if (totalViews >= 2200) return "🎖️"; // 동훈장
-    if (totalViews >= 1500) return "🥇"; // 금메달
-    if (totalViews >= 500) return "🥈"; // 은메달
-    if (totalViews >= 300) return "🥉"; // 동메달
-    return "💀"; // 해골
+    if (isDiamond) return "💎";
+    if (totalViews >= 20000) return "✨";
+    if (totalViews >= 10000) return "⭐";
+    if (totalViews >= 5000) return "🌟";
+    if (totalViews >= 3000) return "🏆";
+    if (totalViews >= 2500) return "🏅";
+    if (totalViews >= 2200) return "🎖️";
+    if (totalViews >= 1500) return "🥇";
+    if (totalViews >= 500) return "🥈";
+    if (totalViews >= 300) return "🥉";
+    return "💀";
   }
 
   @override
@@ -317,7 +363,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 프로필 헤더
   Widget _buildProfileHeader() {
     return Container(
       padding: const EdgeInsets.only(top: 80, bottom: 20),
@@ -383,7 +428,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 통계 정보
   Widget _buildProfileStats() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -411,7 +455,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 통계 아이템
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
@@ -435,7 +478,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 프로필 정보
   Widget _buildProfileInfo() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -455,14 +497,13 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       child: Column(
         children: [
           _infoTile(Icons.store, "홈샵", _friendData!["homeShop"] ?? "없음"),
-          _infoTile(Icons.star, "레이팅", _friendData!.containsKey("rating") ? "${_friendData!["rating"]}" : "정보 없음"),
+          _infoTile(Icons.star, "레이팅", _friendData!["rating"]?.toString() ?? "정보 없음"),
           _infoTile(Icons.sports_esports, "다트 보드", _friendData!["dartBoard"] ?? "정보 없음"),
         ],
       ),
     );
   }
 
-  /// 정보 아이템
   Widget _infoTile(IconData icon, String title, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -491,7 +532,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 액션 버튼
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -516,7 +556,6 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     );
   }
 
-  /// 액션 버튼 스타일링
   Widget _buildActionButton(IconData icon, String label, LinearGradient gradient, VoidCallback onPressed) {
     return Container(
       width: double.infinity,

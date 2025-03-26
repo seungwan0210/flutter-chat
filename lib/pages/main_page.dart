@@ -34,25 +34,52 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
-    _logger.i("MainPage initialized with initialIndex: ${_selectedIndex}");
+    _logger.i("MainPage initialized with initialIndex: $_selectedIndex");
     _checkAccountStatus();
   }
 
-  /// 계정 활성화 상태 확인
+  /// 계정 활성화 상태 및 차단 횟수 확인
   Future<void> _checkAccountStatus() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _logger.i("Checking account status for UID: ${user.uid}");
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
-      bool isActive = userDoc.exists && (userDoc["isActive"] ?? true);
-      _logger.i("User document exists: ${userDoc.exists}, isActive: $isActive");
+      try {
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+        if (!userDoc.exists) {
+          _logger.w("User document does not exist for UID: ${user.uid}, redirecting to LoginPage");
+          await FirebaseAuth.instance.signOut();
+          Navigator.pushReplacementNamed(context, '/login');
+          return;
+        }
 
-      if (!isActive) {
-        _logger.w("User is inactive, signing out and redirecting to LoginPage");
-        await FirebaseAuth.instance.signOut();
-        Navigator.pushReplacementNamed(context, '/login');
-      } else {
-        _logger.i("User is active, staying on MainPage");
+        int blockedByCount = userDoc["blockedByCount"] ?? 0;
+        bool isActive = userDoc["isActive"] ?? true;
+
+        _logger.i("User document exists: ${userDoc.exists}, blockedByCount: $blockedByCount, isActive: $isActive");
+
+        // 10회 이상 차단당한 경우 계정 비활성화 처리
+        if (blockedByCount >= 10 && isActive) {
+          await FirebaseFirestore.instance.collection("users").doc(user.uid).update({"isActive": false});
+          _logger.w("User ${user.uid} blocked 10+ times, deactivated account.");
+          await FirebaseAuth.instance.signOut();
+          Navigator.pushReplacementNamed(context, '/login');
+          return;
+        }
+
+        if (!isActive) {
+          _logger.w("User is inactive, signing out and redirecting to LoginPage");
+          await FirebaseAuth.instance.signOut();
+          Navigator.pushReplacementNamed(context, '/login');
+        } else {
+          _logger.i("User is active, staying on MainPage");
+        }
+      } catch (e) {
+        _logger.e("Error checking account status: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("계정 상태 확인 중 오류 발생: $e")),
+          );
+        }
       }
     } else {
       _logger.w("No user logged in, redirecting to LoginPage");

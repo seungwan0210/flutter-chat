@@ -50,24 +50,64 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _updateUserStatus(String uid, String status) async {
-    _logger.i("Updating user status for UID: $uid to $status");
-    await _firestore.collection("users").doc(uid).update({"status": status});
+    try {
+      _logger.i("Updating user status for UID: $uid to $status");
+      await _firestore.collection("users").doc(uid).update({"status": status});
+    } catch (e) {
+      _logger.e("❌ 사용자 상태 업데이트 중 오류 발생: $e");
+      throw Exception("사용자 상태 업데이트 실패: $e");
+    }
   }
 
   Future<void> _createUserData(User user) async {
-    _logger.i("Creating user data for UID: ${user.uid}");
-    await _firestore.collection("users").doc(user.uid).set({
-      "uid": user.uid,
-      "email": user.email,
-      "nickname": "새 유저",
-      "profileImage": "https://via.placeholder.com/150",
-      "dartBoard": "다트라이브",
-      "messageSetting": "all",
-      "status": "online",
-      "createdAt": FieldValue.serverTimestamp(),
-      "blockedByCount": 0,
-      "isActive": true,
-    });
+    try {
+      _logger.i("Creating user data for UID: ${user.uid}");
+      await _firestore.collection("users").doc(user.uid).set({
+        "uid": user.uid,
+        "email": user.email,
+        "nickname": "새 유저",
+        "profileImages": [],
+        "mainProfileImage": "",
+        "dartBoard": "다트라이브",
+        "messageSetting": "all",
+        "status": "online",
+        "createdAt": FieldValue.serverTimestamp(),
+        "rating": 0,
+        "friendCount": 0,
+        "isOfflineMode": false,
+        "blockedByCount": 0,
+        "isActive": true,
+      });
+      _logger.i("✅ 사용자 데이터 생성 완료: ${user.uid}");
+    } catch (e) {
+      _logger.e("❌ 사용자 데이터 생성 중 오류 발생: $e");
+      throw Exception("사용자 데이터 생성 실패: $e");
+    }
+  }
+
+  Future<bool> _checkAccountStatus(String uid) async {
+    try {
+      DocumentSnapshot userDoc = await _firestore.collection("users").doc(uid).get();
+      if (!userDoc.exists) {
+        _logger.w("User document does not exist for UID: $uid");
+        return false;
+      }
+
+      int blockedByCount = userDoc["blockedByCount"] ?? 0;
+      bool isActive = userDoc["isActive"] ?? true;
+
+      _logger.i("Account status for UID: $uid - blockedByCount: $blockedByCount, isActive: $isActive");
+
+      if (blockedByCount >= 10 && isActive) {
+        await _firestore.collection("users").doc(uid).update({"isActive": false});
+        _logger.w("User $uid blocked 10+ times, deactivated account.");
+        return false;
+      }
+      return isActive;
+    } catch (e) {
+      _logger.e("Error checking account status: $e");
+      return true; // 오류 발생 시 기본값 true 반환
+    }
   }
 
   String _getErrorMessage(String code) {
@@ -78,7 +118,7 @@ class _LoginPageState extends State<LoginPage> {
         return "비밀번호가 올바르지 않습니다.";
       case "invalid-email":
         return "이메일 형식이 올바르지 않습니다.";
-      case "account-disabled":
+      case "user-disabled":
         return "이 계정은 비활성화되었습니다.";
       default:
         return "로그인 실패: $code";
@@ -107,16 +147,27 @@ class _LoginPageState extends State<LoginPage> {
       DocumentSnapshot userDoc = await _firestore.collection("users").doc(uid).get();
       _logger.i("Fetched user document for UID: $uid, exists: ${userDoc.exists}");
 
-      if (userDoc.exists) {
-        await _updateUserStatus(uid, "online");
-        _logger.i("User status updated to online");
-      } else {
+      if (!userDoc.exists) {
         await _createUserData(userCredential.user!);
-        _logger.i("User document created");
       }
 
-      _logger.i("Navigating to MainPage");
+      bool isActive = await _checkAccountStatus(uid);
+      if (!isActive) {
+        await _auth.signOut();
+        _logger.w("User $uid is inactive, signing out");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("이 계정은 비활성화되었습니다.")),
+          );
+        }
+        return;
+      }
+
+      await _updateUserStatus(uid, "online");
+      _logger.i("User status updated to online");
+
       if (mounted) {
+        _logger.i("Navigating to MainPage");
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 3)),

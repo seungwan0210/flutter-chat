@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:logger/logger.dart';
 import 'profile_detail_page.dart';
 import 'friend_search_page.dart';
 import 'settings/friend_requests_page.dart';
@@ -21,6 +22,7 @@ class _FriendsPageState extends State<FriendsPage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final Logger _logger = Logger();
 
   Map<String, dynamic>? currentUserData;
 
@@ -28,37 +30,51 @@ class _FriendsPageState extends State<FriendsPage> {
   void initState() {
     super.initState();
     _listenToCurrentUser();
+    _logger.i("FriendsPage initState called");
   }
 
-  /// Firestore에서 로그인한 사용자 정보 실시간 감지
+  @override
+  void dispose() {
+    _logger.i("FriendsPage dispose called");
+    super.dispose();
+  }
+
   void _listenToCurrentUser() {
     String currentUserId = auth.currentUser!.uid;
-    firestore.collection("users").doc(currentUserId).snapshots().listen((userDoc) {
-      if (userDoc.exists) {
-        setState(() {
-          currentUserData = userDoc.data() as Map<String, dynamic>;
-        });
-      }
-    }, onError: (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
-      );
-    });
+    firestore.collection("users").doc(currentUserId).snapshots().listen(
+          (userDoc) {
+        if (userDoc.exists) {
+          if (mounted) {
+            setState(() {
+              currentUserData = userDoc.data() as Map<String, dynamic>;
+            });
+          }
+          _logger.i("Current user data updated for UID: $currentUserId");
+        }
+      },
+      onError: (e) {
+        _logger.e("Error listening to current user data: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
+          );
+        }
+      },
+    );
   }
 
-  /// 등급 계산 (11단계, 이모티콘으로 반환)
   String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎"; // 다이아 (지정된 사용자)
-    if (totalViews >= 20000) return "✨"; // 금별
-    if (totalViews >= 10000) return "⭐"; // 은별
-    if (totalViews >= 5000) return "🌟"; // 동별
-    if (totalViews >= 3000) return "🏆"; // 금훈장
-    if (totalViews >= 2500) return "🏅"; // 은훈장
-    if (totalViews >= 2200) return "🎖️"; // 동훈장
-    if (totalViews >= 1500) return "🥇"; // 금메달
-    if (totalViews >= 500) return "🥈"; // 은메달
-    if (totalViews >= 300) return "🥉"; // 동메달
-    return "💀"; // 해골
+    if (isDiamond) return "💎";
+    if (totalViews >= 20000) return "✨";
+    if (totalViews >= 10000) return "⭐";
+    if (totalViews >= 5000) return "🌟";
+    if (totalViews >= 3000) return "🏆";
+    if (totalViews >= 2500) return "🏅";
+    if (totalViews >= 2200) return "🎖️";
+    if (totalViews >= 1500) return "🥇";
+    if (totalViews >= 500) return "🥈";
+    if (totalViews >= 300) return "🥉";
+    return "💀";
   }
 
   @override
@@ -68,34 +84,31 @@ class _FriendsPageState extends State<FriendsPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: StreamBuilder<QuerySnapshot>(
-          stream: firestore.collection("users").doc(currentUserId).collection("friends").snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
+        title: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _firestoreService.listenToFriends(),
+          builder: (context, friendsSnapshot) {
+            if (friendsSnapshot.hasError) {
+              _logger.e("Error loading friend count: ${friendsSnapshot.error}");
               return const Text("친구 (오류)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
             }
-            if (!snapshot.hasData) {
+            if (!friendsSnapshot.hasData) {
               return const Text("친구 (로딩 중)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
             }
 
-            // 친구 목록에서 비활성화된 유저 제외
             return StreamBuilder<List<Map<String, dynamic>>>(
-              stream: CombineLatestStream.list(
-                snapshot.data!.docs.map((friend) {
-                  String friendId = friend.id;
-                  return firestore.collection("users").doc(friendId).snapshots().map((userSnapshot) {
-                    if (!userSnapshot.exists) return null;
-                    var friendData = userSnapshot.data() as Map<String, dynamic>?;
-                    if (friendData == null || !(friendData["isActive"] ?? true)) return null;
-                    return {"friendId": friendId};
-                  });
-                }).toList(),
-              ).map((results) => results.where((result) => result != null).cast<Map<String, dynamic>>().toList()),
-              builder: (context, activeFriendsSnapshot) {
-                if (activeFriendsSnapshot.connectionState == ConnectionState.waiting) {
+              stream: _firestoreService.listenToBlockedUsers(),
+              builder: (context, blockedSnapshot) {
+                if (blockedSnapshot.hasError) {
+                  _logger.e("Error loading blocked users: ${blockedSnapshot.error}");
+                  return const Text("친구 (오류)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
+                }
+                if (!blockedSnapshot.hasData) {
                   return const Text("친구 (로딩 중)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
                 }
-                int friendCount = activeFriendsSnapshot.hasData ? activeFriendsSnapshot.data!.length : 0;
+
+                var friends = friendsSnapshot.data!;
+                var blockedIds = blockedSnapshot.data!.map((user) => user["blockedUserId"] as String).toList();
+                int friendCount = friends.where((friend) => !blockedIds.contains(friend["userId"])).length;
                 return Text("친구 ($friendCount)", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white));
               },
             );
@@ -113,14 +126,13 @@ class _FriendsPageState extends State<FriendsPage> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-            // 다트라이브 배너 (최상단으로 이동)
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: InkWell(
                 onTap: () => _launchURL(context, 'https://www.dartslive.com/kr/'),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  height: 100, // 배너 크기를 60px에서 100px로 조정
+                  height: 100,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
@@ -139,124 +151,59 @@ class _FriendsPageState extends State<FriendsPage> {
                 ),
               ),
             ),
-            const Divider(
-              thickness: 0.5,
-              color: Colors.grey,
-              indent: 16,
-              endIndent: 16,
-            ),
+            const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
             const SizedBox(height: 10),
             _buildMyProfile(),
-            const Divider(
-              thickness: 0.5,
-              color: Colors.grey,
-              indent: 16,
-              endIndent: 16,
-            ),
+            const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
             const SizedBox(height: 10),
-            // 즐겨찾기 섹션
             StreamBuilder<QuerySnapshot>(
               stream: firestore.collection("users").doc(currentUserId).collection("favorites").snapshots(),
               builder: (context, favoriteSnapshot) {
-                if (favoriteSnapshot.hasError) return const SizedBox();
+                if (favoriteSnapshot.hasError) {
+                  _logger.e("Error loading favorites: ${favoriteSnapshot.error}");
+                  return const SizedBox();
+                }
                 if (!favoriteSnapshot.hasData) return const Center(child: CircularProgressIndicator());
                 var favoriteIds = favoriteSnapshot.data?.docs.map((doc) => doc.id).toList() ?? [];
                 return _buildUserSection("즐겨찾기", favoriteIds, isFavoriteSection: true);
               },
             ),
-            const Divider(
-              thickness: 0.5,
-              color: Colors.grey,
-              indent: 16,
-              endIndent: 16,
-            ),
-            // 친구 목록 섹션 (온라인/오프라인 분리)
-            StreamBuilder<QuerySnapshot>(
-              stream: firestore.collection("users").doc(currentUserId).collection("friends").snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                if (snapshot.hasError) {
+            const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _firestoreService.listenToFriends(),
+              builder: (context, friendsSnapshot) {
+                if (!friendsSnapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (friendsSnapshot.hasError) {
+                  _logger.e("Error loading friends: ${friendsSnapshot.error}");
                   return const Center(child: Text("친구 목록을 불러오는 중 오류가 발생했습니다.", style: TextStyle(color: Colors.redAccent)));
                 }
 
-                var friends = snapshot.data!.docs;
+                var friends = friendsSnapshot.data!;
                 if (friends.isEmpty) return _buildNoFriends();
 
-                return StreamBuilder<QuerySnapshot>(
-                  stream: firestore.collection("users").doc(currentUserId).collection("blockedUsers").snapshots(),
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _firestoreService.listenToBlockedUsers(),
                   builder: (context, blockedSnapshot) {
-                    if (blockedSnapshot.hasError) return const SizedBox();
+                    if (blockedSnapshot.hasError) {
+                      _logger.e("Error loading blocked users: ${blockedSnapshot.error}");
+                      return const SizedBox();
+                    }
                     if (!blockedSnapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    var blockedIds = blockedSnapshot.data?.docs.map((doc) => doc.id).toList() ?? [];
-                    friends = friends.where((friend) => !blockedIds.contains(friend.id)).toList();
+                    var blockedIds = blockedSnapshot.data!.map((user) => user["blockedUserId"] as String).toList();
+                    friends = friends.where((friend) => !blockedIds.contains(friend["userId"])).toList();
 
                     if (friends.isEmpty) return _buildNoFriends();
 
-                    // 온/오프라인 유저 분리
-                    List<String> onlineFriendIds = [];
-                    List<String> offlineFriendIds = [];
+                    var onlineFriendIds = friends.where((friend) => friend["status"] == "online").map((friend) => friend["userId"] as String).toList();
+                    var offlineFriendIds = friends.where((friend) => friend["status"] != "online").map((friend) => friend["userId"] as String).toList();
+
+                    _logger.i("Online friends: $onlineFriendIds, Offline friends: $offlineFriendIds");
 
                     return Column(
                       children: [
-                        // 친구 목록을 온/오프라인으로 분류
-                        StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: CombineLatestStream.list(
-                            friends.map((friend) {
-                              String friendId = friend.id;
-                              return firestore.collection("users").doc(friendId).snapshots().map((snapshot) {
-                                if (!snapshot.exists) return null;
-                                var friendData = snapshot.data() as Map<String, dynamic>?;
-                                if (friendData == null || !(friendData["isActive"] ?? true)) return null; // 비활성화된 유저 제외
-                                return {
-                                  "friendId": friendId,
-                                  "isOnline": friendData["status"] == "online",
-                                  "friendData": friendData,
-                                };
-                              });
-                            }).toList(),
-                          ).map((results) => results.where((result) => result != null).cast<Map<String, dynamic>>().toList()),
-                          builder: (context, friendDataSnapshot) {
-                            if (friendDataSnapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (friendDataSnapshot.hasError) {
-                              return const Center(child: Text("친구 데이터 로드 중 오류", style: TextStyle(color: Colors.redAccent)));
-                            }
-
-                            onlineFriendIds.clear();
-                            offlineFriendIds.clear();
-
-                            var friendDataList = friendDataSnapshot.data ?? [];
-                            for (var friendData in friendDataList) {
-                              String friendId = friendData["friendId"];
-                              bool isOnline = friendData["isOnline"];
-                              if (isOnline) {
-                                onlineFriendIds.add(friendId);
-                              } else {
-                                offlineFriendIds.add(friendId);
-                              }
-                            }
-
-                            // 디버깅 로그 추가
-                            print("온라인 유저: $onlineFriendIds");
-                            print("오프라인 유저: $offlineFriendIds");
-
-                            return Column(
-                              children: [
-                                // 온라인 유저 섹션
-                                _buildUserSection("온라인 유저", onlineFriendIds),
-                                const Divider(
-                                  thickness: 0.5,
-                                  color: Colors.grey,
-                                  indent: 16,
-                                  endIndent: 16,
-                                ),
-                                // 오프라인 유저 섹션
-                                _buildUserSection("오프라인 유저", offlineFriendIds),
-                              ],
-                            );
-                          },
-                        ),
+                        _buildUserSection("온라인 유저", onlineFriendIds),
+                        const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
+                        _buildUserSection("오프라인 유저", offlineFriendIds),
                       ],
                     );
                   },
@@ -269,14 +216,13 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 
-  /// 내 프로필 UI
   Widget _buildMyProfile() {
     if (currentUserData == null) return const Center(child: CircularProgressIndicator());
 
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
     String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
-    int totalViews = currentUserData!.containsKey("totalViews") ? currentUserData!["totalViews"] ?? 0 : 0;
+    int totalViews = currentUserData!["totalViews"] ?? 0;
     bool isDiamond = currentUserData!["isDiamond"] ?? false;
     String rank = _calculateRank(totalViews, isDiamond);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
@@ -315,7 +261,7 @@ class _FriendsPageState extends State<FriendsPage> {
                     style: const TextStyle(color: Colors.black54),
                   ),
                   Text(
-                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
+                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!["rating"] ?? 0}",
                     style: const TextStyle(color: Colors.black54),
                   ),
                   Text(
@@ -331,7 +277,6 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 
-  /// 유저 섹션 (온라인/오프라인/즐겨찾기)
   Widget _buildUserSection(String title, List<String> friendIds, {bool isFavoriteSection = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,7 +284,7 @@ class _FriendsPageState extends State<FriendsPage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            "$title (${friendIds.length})",
+            title, // 숫자 제거
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
         ),
@@ -353,21 +298,24 @@ class _FriendsPageState extends State<FriendsPage> {
             stream: firestore.collection("users").doc(friendId).snapshots(),
             builder: (context, friendSnapshot) {
               if (!friendSnapshot.hasData) return const ListTile(title: Text("로딩 중...", style: TextStyle(color: Colors.black87)));
-              if (friendSnapshot.hasError) return const ListTile(title: Text("정보 로드 오류", style: TextStyle(color: Colors.black87)));
+              if (friendSnapshot.hasError) {
+                _logger.e("Error loading friend data for $friendId: ${friendSnapshot.error}");
+                return const ListTile(title: Text("정보 로드 오류", style: TextStyle(color: Colors.black87)));
+              }
               if (!friendSnapshot.data!.exists) return const SizedBox.shrink();
 
               var friendData = friendSnapshot.data!.data() as Map<String, dynamic>?;
-              if (friendData == null || !(friendData["isActive"] ?? true)) return const SizedBox.shrink(); // 비활성화된 유저 제외
+              if (friendData == null || !(friendData["isActive"] ?? true)) return const SizedBox.shrink();
 
               List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(friendData["profileImages"] ?? []);
               String? mainProfileImage = friendData["mainProfileImage"];
               String nickname = friendData["nickname"] ?? "알 수 없음";
               String homeShop = friendData["homeShop"] ?? "없음";
               String dartBoard = friendData["dartBoard"] ?? "정보 없음";
-              int rating = friendData.containsKey("rating") ? friendData["rating"] ?? 0 : 0;
+              int rating = friendData["rating"] ?? 0;
               String messageSetting = friendData["messageReceiveSetting"] ?? "전체 허용";
               bool isOnline = friendData["status"] == "online";
-              int totalViews = friendData.containsKey("totalViews") ? friendData["totalViews"] ?? 0 : 0;
+              int totalViews = friendData["totalViews"] ?? 0;
               bool isDiamond = friendData["isDiamond"] ?? false;
               String rank = _calculateRank(totalViews, isDiamond);
 
@@ -453,7 +401,10 @@ class _FriendsPageState extends State<FriendsPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: firestore.collection("users").doc(auth.currentUser!.uid).collection("friendRequests").snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return IconButton(icon: const Icon(Icons.error), onPressed: () {});
+        if (snapshot.hasError) {
+          _logger.e("Error loading friend requests: ${snapshot.error}");
+          return IconButton(icon: const Icon(Icons.error), onPressed: () {});
+        }
         int requestCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
         return Stack(
           alignment: Alignment.topRight,
@@ -558,8 +509,12 @@ class _FriendsPageState extends State<FriendsPage> {
     try {
       bool launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
       if (!launched) throw 'Could not launch $url';
+      _logger.i("URL launched: $url");
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('URL 열기 실패: $e')));
+      _logger.e("Error launching URL: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('URL 열기 실패: $e')));
+      }
     }
   }
 }

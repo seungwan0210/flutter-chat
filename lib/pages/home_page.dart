@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:logger/logger.dart'; // Logger 추가
 import 'profile_detail_page.dart';
 import 'UserSearchPage.dart';
 import 'admin_page.dart';
@@ -17,6 +18,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final Logger _logger = Logger(); // Logger 인스턴스 추가
   String selectedBoardFilter = "전체";
   String selectedRatingFilter = "전체";
   static const int MAX_RATING = 30;
@@ -35,24 +37,34 @@ class _HomePageState extends State<HomePage> {
     _listenToCurrentUser();
     profileStatsStream = _getProfileStatsStream();
     ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
+    _logger.i("HomePage initState called");
   }
 
   void _listenToCurrentUser() {
     String currentUserId = auth.currentUser!.uid;
-    FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots().listen((userDoc) {
-      if (userDoc.exists) {
-        setState(() {
-          currentUserData = userDoc.data() as Map<String, dynamic>;
-          _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
-          _isDiamond = currentUserData!["isDiamond"] ?? false;
-          _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isDiamond);
-        });
-      }
-    }, onError: (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
-      );
-    });
+    FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots().listen(
+          (userDoc) {
+        if (userDoc.exists) {
+          if (mounted) {
+            setState(() {
+              currentUserData = userDoc.data() as Map<String, dynamic>;
+              _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
+              _isDiamond = currentUserData!["isDiamond"] ?? false;
+              _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isDiamond);
+            });
+          }
+          _logger.i("Current user data updated for UID: $currentUserId");
+        }
+      },
+      onError: (e) {
+        _logger.e("Error listening to current user data: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
+          );
+        }
+      },
+    );
   }
 
   Stream<DocumentSnapshot> _getProfileStatsStream() {
@@ -83,18 +95,14 @@ class _HomePageState extends State<HomePage> {
           stream: FirebaseFirestore.instance.collection("users").snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
+              _logger.e("Error loading user count: ${snapshot.error}");
               return const Text("홈 (오류)", style: TextStyle(color: Colors.white));
             }
             int userCount = snapshot.hasData
                 ? snapshot.data!.docs
                 .where((doc) {
               Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
-              dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
-              bool isActive = isActiveRaw is bool
-                  ? isActiveRaw
-                  : isActiveRaw is String
-                  ? isActiveRaw.toLowerCase() == "true"
-                  : true;
+              bool isActive = userData["isActive"] ?? true;
               return isActive;
             })
                 .length
@@ -143,8 +151,11 @@ class _HomePageState extends State<HomePage> {
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _firestoreService.listenToBlockedUsers(),
               builder: (context, blockedSnapshot) {
-                if (!blockedSnapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (!blockedSnapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 if (blockedSnapshot.hasError) {
+                  _logger.e("Error loading blocked users: ${blockedSnapshot.error}");
                   return const Center(child: Text("차단 목록 로드 중 오류", style: TextStyle(color: Colors.redAccent)));
                 }
 
@@ -153,8 +164,11 @@ class _HomePageState extends State<HomePage> {
                 return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance.collection("users").snapshots(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
                     if (snapshot.hasError) {
+                      _logger.e("Error loading user list: ${snapshot.error}");
                       return Center(
                         child: Text(
                           "사용자 목록을 불러오는 중 오류가 발생했습니다.",
@@ -164,22 +178,18 @@ class _HomePageState extends State<HomePage> {
                     }
 
                     var users = snapshot.data!.docs.where((user) {
-                      if (user.id == auth.currentUser!.uid) return false;
-                      if (blockedIds.contains(user.id)) return false;
+                      if (user.id == auth.currentUser!.uid) return false; // 현재 사용자 제외
+                      if (blockedIds.contains(user.id)) return false; // 차단된 사용자 제외
                       Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-                      dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
-                      bool isActive = isActiveRaw is bool
-                          ? isActiveRaw
-                          : isActiveRaw is String
-                          ? isActiveRaw.toLowerCase() == "true"
-                          : true;
+                      bool isActive = userData["isActive"] ?? true; // 비활성화된 사용자 제외
                       if (!isActive) return false;
                       String dartBoard = userData["dartBoard"] ?? "없음";
-                      int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
+                      int rating = userData["rating"] ?? 0;
                       return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
                           (selectedRatingFilter == "전체" || rating.toString() == selectedRatingFilter);
                     }).toList();
 
+                    _logger.i("Filtered user list length: ${users.length}");
                     return _buildUserList(users);
                   },
                 );
@@ -191,10 +201,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 나머지 메서드 (_buildMyProfile, _buildUserList 등)는 이전 코드와 동일하게 유지
-  // 생략된 부분은 그대로 사용한다고 가정
   Widget _buildMyProfile() {
-    if (currentUserData == null) return const Center(child: CircularProgressIndicator());
+    if (currentUserData == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
@@ -239,7 +249,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                   Text(
-                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!.containsKey("rating") ? "${currentUserData!["rating"]}" : "0"}",
+                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!["rating"] ?? 0}",
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                   Text(
@@ -293,12 +303,10 @@ class _HomePageState extends State<HomePage> {
     String currentUserId = auth.currentUser!.uid;
     bool isOnline = user["status"] == "online";
     Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-    String messageSetting = userData.containsKey("messageReceiveSetting")
-        ? userData["messageReceiveSetting"] ?? "전체 허용"
-        : "전체 허용";
-    int rating = userData.containsKey("rating") ? userData["rating"] ?? 0 : 0;
-    int totalViews = userData.containsKey("totalViews") ? userData["totalViews"] ?? 0 : 0;
-    bool isDiamond = userData.containsKey("isDiamond") ? userData["isDiamond"] ?? false : false;
+    String messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
+    int rating = userData["rating"] ?? 0;
+    int totalViews = userData["totalViews"] ?? 0;
+    bool isDiamond = userData["isDiamond"] ?? false;
     String rank = _calculateRank(totalViews, isDiamond);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
     String? mainProfileImage = userData["mainProfileImage"];
@@ -405,6 +413,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         if (snapshot.hasError) {
+          _logger.e("Error loading profile stats: ${snapshot.error}");
           return Center(
             child: Text(
               "통계 정보를 불러오는 중 오류가 발생했습니다.",

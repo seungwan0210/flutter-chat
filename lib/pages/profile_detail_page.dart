@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart'; // Logger 추가
 import '../services/firestore_service.dart';
 import 'chat_page.dart';
 import 'play_summary_page.dart';
@@ -28,6 +29,7 @@ class ProfileDetailPage extends StatefulWidget {
 class _ProfileDetailPageState extends State<ProfileDetailPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final Logger _logger = Logger(); // Logger 인스턴스 추가
 
   bool _isBlocked = false;
   bool _isFriend = false;
@@ -39,73 +41,86 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   int dailyViews = 0;
   String messageSetting = "전체 허용";
   String? _errorMessage;
-  String _rank = "💀"; // 초기값을 해골로 설정
+  String _rank = "💀";
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
-  bool _isDiamond = false; // 다이아 등급 여부
-  bool _isActive = true; // 계정 활성화 상태
+  bool _isDiamond = false;
+  bool _isActive = true;
 
   @override
   void initState() {
     super.initState();
     _checkFriendStatus();
     _loadUserInfo();
-
     if (!widget.isCurrentUser) {
       _increaseProfileView(widget.userId);
     }
+    _logger.i("ProfileDetailPage initState called for userId: ${widget.userId}");
   }
 
-  /// 날짜 문자열 생성
+  @override
+  void dispose() {
+    _logger.i("ProfileDetailPage dispose called for userId: ${widget.userId}");
+    super.dispose();
+  }
+
   String _getDateString(DateTime date) {
     return "${date.year}-${date.month}-${date.day}";
   }
 
-  /// 등급 계산 (11단계, 이모티콘으로 반환)
   String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎"; // 다이아 (어드민 지정)
-    if (totalViews >= 20000) return "✨"; // 금별
-    if (totalViews >= 10000) return "⭐"; // 은별
-    if (totalViews >= 5000) return "🌟"; // 동별
-    if (totalViews >= 3000) return "🏆"; // 금훈장
-    if (totalViews >= 2500) return "🏅"; // 은훈장
-    if (totalViews >= 2200) return "🎖️"; // 동훈장
-    if (totalViews >= 1500) return "🥇"; // 금메달
-    if (totalViews >= 500) return "🥈"; // 은메달
-    if (totalViews >= 300) return "🥉"; // 동메달
-    return "💀"; // 해골
+    if (isDiamond) return "💎";
+    if (totalViews >= 20000) return "✨";
+    if (totalViews >= 10000) return "⭐";
+    if (totalViews >= 5000) return "🌟";
+    if (totalViews >= 3000) return "🏆";
+    if (totalViews >= 2500) return "🏅";
+    if (totalViews >= 2200) return "🎖️";
+    if (totalViews >= 1500) return "🥇";
+    if (totalViews >= 500) return "🥈";
+    if (totalViews >= 300) return "🥉";
+    return "💀";
   }
 
-  /// 친구 상태 및 요청 상태 확인
   Future<void> _checkFriendStatus() async {
-    String currentUserId = _auth.currentUser!.uid;
+    try {
+      String currentUserId = _auth.currentUser!.uid;
 
-    DocumentSnapshot friendDoc = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(currentUserId)
-        .collection("friends")
-        .doc(widget.userId)
-        .get();
-    if (mounted) {
-      setState(() {
-        _isFriend = friendDoc.exists;
-      });
-    }
+      DocumentSnapshot friendDoc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(currentUserId)
+          .collection("friends")
+          .doc(widget.userId)
+          .get();
+      if (mounted) {
+        setState(() {
+          _isFriend = friendDoc.exists;
+        });
+      }
 
-    DocumentSnapshot requestDoc = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(widget.userId)
-        .collection("friendRequests")
-        .doc(currentUserId)
-        .get();
-    if (mounted) {
-      setState(() {
-        _isRequestPending = requestDoc.exists;
-      });
+      DocumentSnapshot requestDoc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(widget.userId)
+          .collection("friendRequests")
+          .doc(currentUserId)
+          .get();
+      if (mounted) {
+        setState(() {
+          _isRequestPending = requestDoc.exists;
+        });
+      }
+
+      _logger.i("Friend status checked: isFriend=$_isFriend, isRequestPending=$_isRequestPending");
+    } catch (e) {
+      _logger.e("Error checking friend status: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = "친구 상태 확인 중 오류: $e";
+        });
+      }
     }
   }
 
-  /// 프로필 조회 시 조회수 증가 (중복 조회 방지)
   Future<void> _increaseProfileView(String viewedUserId) async {
     try {
       String currentUserId = _auth.currentUser!.uid;
@@ -113,49 +128,25 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
       DocumentReference profileRef = FirebaseFirestore.instance.collection("users").doc(viewedUserId);
       DocumentSnapshot profileSnapshot = await profileRef.get();
-      if (!profileSnapshot.exists || !(profileSnapshot["isActive"] ?? true)) return; // 비활성화된 유저는 조회수 증가 제외
+      if (!profileSnapshot.exists || !(profileSnapshot["isActive"] ?? true)) return;
 
-      DocumentReference viewRef = profileRef.collection("profile_views").doc(currentUserId);
-
-      DocumentSnapshot viewSnapshot = await viewRef.get();
-      DateTime today = DateTime.now();
-      String todayStr = _getDateString(today);
-
-      if (viewSnapshot.exists) {
-        Timestamp lastViewedAt = viewSnapshot["viewedAt"];
-        DateTime lastViewedDate = lastViewedAt.toDate();
-        String lastViewedStr = _getDateString(lastViewedDate);
-
-        if (lastViewedStr == todayStr) return;
-      }
-
-      WriteBatch batch = FirebaseFirestore.instance.batch();
-      batch.set(viewRef, {
-        "viewedAt": FieldValue.serverTimestamp(),
-        "viewerId": currentUserId,
-      });
-      batch.update(profileRef, {
-        "totalViews": FieldValue.increment(1),
-        "todayViews": FieldValue.increment(1),
-      });
-
-      await batch.commit();
+      await _firestoreService.incrementProfileViews(viewedUserId); // FirestoreService 메서드 활용
+      _logger.i("Profile view increased for userId: $viewedUserId");
 
       DocumentSnapshot updatedProfile = await profileRef.get();
       if (updatedProfile.exists) {
         Map<String, dynamic>? updatedData = updatedProfile.data() as Map<String, dynamic>?;
-        if (updatedData != null) {
-          if (mounted) {
-            setState(() {
-              totalViews = updatedData["totalViews"] ?? 0;
-              dailyViews = updatedData["todayViews"] ?? 0;
-              _isDiamond = updatedData["isDiamond"] ?? false;
-              _rank = _calculateRank(totalViews, _isDiamond);
-            });
-          }
+        if (updatedData != null && mounted) {
+          setState(() {
+            totalViews = updatedData["totalViews"] ?? 0;
+            dailyViews = updatedData["todayViews"] ?? 0;
+            _isDiamond = updatedData["isDiamond"] ?? false;
+            _rank = _calculateRank(totalViews, _isDiamond);
+          });
         }
       }
     } catch (e) {
+      _logger.e("Error increasing profile view: $e");
       if (mounted) {
         setState(() {
           _errorMessage = "프로필 조회수 증가 중 오류: $e";
@@ -164,35 +155,26 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
-  /// 유저 정보 불러오기
   Future<void> _loadUserInfo() async {
     try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(widget.userId).get();
-      if (userDoc.exists) {
-        Map<String, dynamic>? userData = userDoc.data() as Map<String, dynamic>?;
-        if (userData != null) {
-          if (mounted) {
-            setState(() {
-              _rating = userData["rating"] ?? 0;
-              _dartBoard = userData["dartBoard"] ?? "정보 없음";
-              _homeShop = userData["homeShop"] ?? "없음";
-              totalViews = userData["totalViews"] ?? 0;
-              dailyViews = userData["todayViews"] ?? 0;
-              messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
-              _isDiamond = userData["isDiamond"] ?? false;
-              _rank = _calculateRank(totalViews, _isDiamond);
-              _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
-              _mainProfileImage = userData["mainProfileImage"];
-              _isActive = userData["isActive"] ?? true; // 계정 활성화 상태 설정
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _errorMessage = "유저 데이터가 비어 있습니다.";
-            });
-          }
+      Map<String, dynamic>? userData = await _firestoreService.getUserData(userId: widget.userId);
+      if (userData != null) {
+        if (mounted) {
+          setState(() {
+            _rating = userData["rating"] ?? 0;
+            _dartBoard = userData["dartBoard"] ?? "정보 없음";
+            _homeShop = userData["homeShop"] ?? "없음";
+            totalViews = userData["totalViews"] ?? 0;
+            dailyViews = userData["todayViews"] ?? 0;
+            messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
+            _isDiamond = userData["isDiamond"] ?? false;
+            _rank = _calculateRank(totalViews, _isDiamond);
+            _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
+            _mainProfileImage = userData["mainProfileImage"];
+            _isActive = userData["isActive"] ?? true;
+          });
         }
+        _logger.i("User info loaded for userId: ${widget.userId}");
       } else {
         if (mounted) {
           setState(() {
@@ -201,6 +183,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         }
       }
     } catch (e) {
+      _logger.e("Error loading user info: $e");
       if (mounted) {
         setState(() {
           _errorMessage = "유저 정보를 불러오는 중 오류: $e";
@@ -209,34 +192,33 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
-  /// 차단/차단 해제 토글
   Future<void> _toggleBlockUser() async {
     try {
-      await _firestoreService.toggleBlockUser(widget.userId, widget.nickname, widget.profileImages);
-
-      // 차단 상태가 토글된 후 Firestore에서 최신 상태를 가져와 UI 업데이트
-      DocumentReference userRef = FirebaseFirestore.instance.collection("users").doc(widget.userId);
-      DocumentSnapshot userSnapshot = await userRef.get();
-      if (userSnapshot.exists) {
-        int newBlockedByCount = userSnapshot["blockedByCount"] ?? 0;
-        bool newIsActive = userSnapshot["isActive"] ?? true;
+      await _firestoreService.toggleBlockUser(widget.userId, widget.nickname, _profileImages);
+      if (mounted) {
         setState(() {
-          _isBlocked = !_isBlocked; // 차단 상태 토글
-          _isActive = newIsActive; // 계정 활성화 상태 업데이트
+          _isBlocked = !_isBlocked;
         });
-
-        if (newBlockedByCount >= 10 && newIsActive) {
-          // Cloud Function에서 처리되므로 추가 확인 불필요
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_isBlocked ? "사용자가 차단되었습니다." : "차단이 해제되었습니다.")),
+        );
       }
+      _logger.i("Block status toggled: isBlocked=$_isBlocked for userId: ${widget.userId}");
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isBlocked ? "차단이 해제되었습니다." : "사용자가 차단되었습니다.")),
-      );
+      // 계정 비활성화 상태 확인 및 UI 업데이트
+      bool isActive = await _firestoreService.isUserActive(widget.userId);
+      if (mounted) {
+        setState(() {
+          _isActive = isActive;
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("차단/차단 해제 중 오류가 발생했습니다: $e")),
-      );
+      _logger.e("Error toggling block status: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("차단/차단 해제 중 오류가 발생했습니다: $e")),
+        );
+      }
     }
   }
 
@@ -289,7 +271,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 프로필 헤더
   Widget _buildProfileHeader() {
     return Container(
       padding: const EdgeInsets.only(top: 80, bottom: 20),
@@ -355,7 +336,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 통계 정보
   Widget _buildProfileStats() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -383,7 +363,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 통계 아이템
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
@@ -407,7 +386,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 프로필 정보
   Widget _buildProfileInfo() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -435,7 +413,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 정보 아이템
   Widget _buildInfoRow(IconData icon, String title, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -464,7 +441,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 액션 버튼
   Widget _buildActionButtons() {
     if (widget.isCurrentUser) {
       return Padding(
@@ -565,6 +541,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
+                  _logger.e("Error loading blocked status: ${snapshot.error}");
                   return const Text(
                     "차단 상태 로드 중 오류",
                     style: TextStyle(color: Colors.redAccent),
@@ -587,7 +564,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
-  /// 친구 관련 액션 버튼
   Widget _buildFriendActionButton() {
     if (_isBlocked) {
       return const Padding(
@@ -640,7 +616,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
-  /// 차단/차단 해제 버튼
   Widget _buildBlockActionButton() {
     return _buildActionButton(
       icon: _isBlocked ? Icons.block : Icons.block_outlined,
@@ -652,7 +627,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 액션 버튼 스타일링
   Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -682,14 +656,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  /// 같은 유저끼리는 항상 같은 채팅방 ID 생성
   String _getChatRoomId(String user1, String user2) {
     List<String> ids = [user1, user2];
     ids.sort();
     return ids.join("_");
   }
 
-  /// 친구 요청 보내기 기능
   Future<void> _sendFriendRequest() async {
     try {
       await _firestoreService.sendFriendRequest(widget.userId);
@@ -701,7 +673,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           const SnackBar(content: Text("친구 요청을 보냈습니다.")),
         );
       }
+      _logger.i("Friend request sent to userId: ${widget.userId}");
     } catch (e) {
+      _logger.e("Error sending friend request: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("친구 요청 중 오류가 발생했습니다: $e")),
@@ -710,10 +684,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     }
   }
 
-  /// 친구 삭제 기능
   Future<void> _removeFriend() async {
     try {
-      String currentUserId = _auth.currentUser!.uid;
       await _firestoreService.removeFriend(widget.userId);
       if (mounted) {
         setState(() {
@@ -723,7 +695,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           const SnackBar(content: Text("친구가 삭제되었습니다.")),
         );
       }
+      _logger.i("Friend removed: userId: ${widget.userId}");
     } catch (e) {
+      _logger.e("Error removing friend: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("친구 삭제 중 오류가 발생했습니다: $e")),

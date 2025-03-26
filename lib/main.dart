@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:generated/l10n.dart'; // 언어팩 파일
 import 'pages/login_page.dart';
 import 'pages/main_page.dart';
 import 'firebase_options.dart';
@@ -12,9 +14,14 @@ import 'services/firestore_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    Logger().e("Firebase 초기화 실패: $e");
+    return;
+  }
   await initializeDateFormatting('ko_KR', null);
   Logger().i("✅ intl 초기화 완료: ko_KR");
 
@@ -23,23 +30,38 @@ void main() async {
   bool hasMigrated = prefs.getBool('hasMigratedProfileImagesToNewFormat') ?? false;
 
   if (!hasMigrated) {
-    await firestoreService.migrateProfileImagesToNewFormat();
-    await prefs.setBool('hasMigratedProfileImagesToNewFormat', true);
-    Logger().i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
+    try {
+      await firestoreService.migrateProfileImagesToNewFormat();
+      await prefs.setBool('hasMigratedProfileImagesToNewFormat', true);
+      Logger().i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
+    } catch (e) {
+      Logger().e("Firestore 데이터 마이그레이션 실패: $e");
+    }
   } else {
     Logger().i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
   }
 
-  runApp(const DartChatApp());
+  String initialLanguage = prefs.getString('language') ?? 'ko';
+  runApp(DartChatApp(initialLocale: Locale(initialLanguage)));
 }
 
 class DartChatApp extends StatelessWidget {
-  const DartChatApp({super.key});
+  final Locale initialLocale;
+
+  const DartChatApp({required this.initialLocale, super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      locale: initialLocale,
+      localizationsDelegates: [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       title: 'Darts Circle',
       theme: ThemeData(
         brightness: Brightness.light,
@@ -164,7 +186,9 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _logger.i("AppLifecycleState changed: $state");
-    if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
       _setUserOffline();
     } else if (state == AppLifecycleState.resumed) {
       _setUserOnline();
@@ -192,6 +216,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
           "isOfflineMode": false,
           "blockedByCount": 0,
           "isActive": true,
+          "language": "ko",
         });
         _logger.i("✅ Firestore에 사용자 문서가 없어서 새로 생성함: ${user.uid}");
       } else {
@@ -199,9 +224,11 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
       }
     } catch (e) {
       _logger.e("❌ Firestore 사용자 문서 확인 중 오류 발생: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("사용자 데이터 확인 중 오류 발생: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("사용자 데이터 확인 중 오류 발생: $e")),
+        );
+      }
     }
   }
 
@@ -232,12 +259,21 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
   Future<bool> _checkAccountStatus(String uid) async {
     try {
       DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(uid).get();
-      bool isActive = userDoc.exists && (userDoc["isActive"] ?? true); // 기본값 true 처리
-      _logger.i("Checked account status for UID: $uid, isActive: $isActive");
+      if (!userDoc.exists) return false;
+
+      final data = userDoc.data() as Map<String, dynamic>? ?? {};
+      int blockedByCount = data.containsKey("blockedByCount") ? (data["blockedByCount"] as int? ?? 0) : 0;
+      bool isActive = data.containsKey("isActive") ? (data["isActive"] as bool? ?? true) : true;
+
+      if (blockedByCount >= 10 && isActive) {
+        await FirebaseFirestore.instance.collection("users").doc(uid).update({"isActive": false});
+        _logger.w("User $uid blocked 10+ times, deactivated account.");
+        return false;
+      }
       return isActive;
     } catch (e) {
       _logger.e("Error checking account status: $e");
-      return true; // 오류 발생 시 기본값 true 반환
+      return true;
     }
   }
 
@@ -272,13 +308,10 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
         }
 
         _logger.i("User logged in, UID: ${user.uid}");
-        return FutureBuilder(
-          future: Future.wait([
-            _checkAndCreateUserData(user),
-            _checkAccountStatus(user.uid),
-          ]),
-          builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-            _logger.i("FutureBuilder state: ${snapshot.connectionState}");
+        _checkAndCreateUserData(user);
+        return FutureBuilder<bool>(
+          future: _checkAccountStatus(user.uid),
+          builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Scaffold(
                 body: Center(
@@ -306,20 +339,13 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
               );
             }
 
-            if (snapshot.hasData) {
-              bool isActive = snapshot.data![1] as bool;
-              _logger.i("isActive result: $isActive");
-              if (isActive) {
-                _logger.i("User is active, navigating to MainPage");
-                return const MainPage();
-              } else {
-                _logger.w("User is inactive, signing out and redirecting to LoginPage");
-                FirebaseAuth.instance.signOut();
-                return const LoginPage();
-              }
+            if (snapshot.hasData && snapshot.data!) {
+              _logger.i("User is active, navigating to MainPage");
+              return const MainPage();
             }
 
-            _logger.e("Unexpected state in FutureBuilder");
+            _logger.w("User is inactive or blocked, signing out and redirecting to LoginPage");
+            FirebaseAuth.instance.signOut();
             return const LoginPage();
           },
         );

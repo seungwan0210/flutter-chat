@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart'; // Logger 패키지 필요
 import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -13,44 +14,65 @@ class SignUpPage extends StatefulWidget {
 class _SignUpPageState extends State<SignUpPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final Logger _logger = Logger();
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isPasswordVisible = false; // 🔹 비밀번호 보이기/숨기기 기능
-  bool _isSignUpEnabled = false; // 🔹 회원가입 버튼 활성화 상태
+  bool _isPasswordVisible = false; // 비밀번호 보이기/숨기기 기능
+  bool _isSignUpEnabled = false; // 회원가입 버튼 활성화 상태
 
   @override
   void initState() {
     super.initState();
     _emailController.addListener(_validateInputs);
     _passwordController.addListener(_validateInputs);
+    _logger.i("SignUpPage initState called");
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _logger.i("SignUpPage dispose called");
+    super.dispose();
   }
 
   void _validateInputs() {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    setState(() {
-      _isSignUpEnabled = email.contains('@') && password.isNotEmpty && password.length >= 6;
-    });
-  }
-
-  Future<void> _updateUserStatus(String uid, String status) async {
-    await _firestore.collection("users").doc(uid).update({"status": status});
+    if (mounted) {
+      setState(() {
+        _isSignUpEnabled = email.contains('@') && password.isNotEmpty && password.length >= 6;
+      });
+    }
   }
 
   Future<void> _createUserData(User user) async {
-    await _firestore.collection("users").doc(user.uid).set({
-      "uid": user.uid,
-      "email": user.email,
-      "nickname": "새 유저",
-      "profileImage": "https://via.placeholder.com/150", // ✅ 기본 이미지 URL
-      "dartBoard": "다트라이브",
-      "messageSetting": "all",
-      "status": "online", // ✅ 회원가입 후 온라인 상태로 설정
-      "createdAt": FieldValue.serverTimestamp(),
-    });
+    try {
+      _logger.i("Creating user data for UID: ${user.uid}");
+      await _firestore.collection("users").doc(user.uid).set({
+        "uid": user.uid,
+        "email": user.email,
+        "nickname": "새 유저",
+        "profileImages": [],
+        "mainProfileImage": "",
+        "dartBoard": "다트라이브",
+        "messageSetting": "all",
+        "status": "online",
+        "createdAt": FieldValue.serverTimestamp(),
+        "rating": 0,
+        "friendCount": 0,
+        "isOfflineMode": false,
+        "blockedByCount": 0,
+        "isActive": true,
+      });
+      _logger.i("✅ 사용자 데이터 생성 완료: ${user.uid}");
+    } catch (e) {
+      _logger.e("❌ 사용자 데이터 생성 중 오류 발생: $e");
+      throw Exception("사용자 데이터 생성 실패: $e");
+    }
   }
 
   String _getErrorMessage(String code) {
@@ -60,7 +82,7 @@ class _SignUpPageState extends State<SignUpPage> {
       case "invalid-email":
         return "이메일 형식이 올바르지 않습니다.";
       case "weak-password":
-        return "비밀번호가 너무 약합니다.";
+        return "비밀번호는 6자 이상이어야 합니다.";
       default:
         return "회원가입 실패: $code";
     }
@@ -69,57 +91,62 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<void> _signUp() async {
     if (!_isSignUpEnabled) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
+      _logger.i("Attempting sign-up with email: ${_emailController.text.trim()}");
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       await _createUserData(userCredential.user!);
+      _logger.i("Sign-up successful, UID: ${userCredential.user!.uid}");
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      }
     } on FirebaseAuthException catch (authError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_getErrorMessage(authError.code), style: const TextStyle(color: Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _logger.e("FirebaseAuthException: ${authError.code} - ${authError.message}");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_getErrorMessage(authError.code), style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("회원가입 중 오류 발생: $e", style: const TextStyle(color: Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _logger.e("Unexpected error during sign-up: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("회원가입 중 오류 발생: $e", style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      _logger.i("Sign-up process completed, loading: $_isLoading");
     }
-  }
-
-  // 🔹 에러 메시지 표시 함수
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // ✅ 테마에 따라 배경 색상
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         child: Center(
           child: Padding(
@@ -148,7 +175,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: Theme.of(context).cardColor, // ✅ 테마에 따라 입력 필드 색상
+                    fillColor: Theme.of(context).cardColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -162,11 +189,11 @@ class _SignUpPageState extends State<SignUpPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: Theme.of(context).cardColor, // ✅ 테마에 따라 입력 필드 색상
+                    fillColor: Theme.of(context).cardColor,
                     suffixIcon: IconButton(
                       icon: Icon(
                         _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                        color: Theme.of(context).iconTheme.color, // ✅ 테마에 따라 아이콘 색상
+                        color: Theme.of(context).iconTheme.color,
                       ),
                       onPressed: () {
                         setState(() {
@@ -186,15 +213,18 @@ class _SignUpPageState extends State<SignUpPage> {
                       const SizedBox(height: 16),
                       Text(
                         "Darts Circle 로딩 중...",
-                        style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyMedium?.color),
-                      ), // ✅ 로딩 UI 개선
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                        ),
+                      ),
                     ],
                   ),
                 )
                     : ElevatedButton(
-                  onPressed: _isSignUpEnabled ? _signUp : null, // 🔹 버튼 활성화 조건
+                  onPressed: _isSignUpEnabled ? _signUp : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isSignUpEnabled ? Theme.of(context).primaryColor : Colors.grey, // ✅ 테마에 따라 버튼 색상
+                    backgroundColor: _isSignUpEnabled ? Theme.of(context).primaryColor : Colors.grey,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -221,12 +251,5 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }

@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations: # 언어팩 지원 추가
+    sdk: flutter
   cupertino_icons: ^1.0.8
   firebase_core: ^3.10.1
   firebase_auth: ^5.4.2
@@ -17,14 +19,14 @@ dependencies:
   image_picker: ^1.1.2
   firebase_storage: ^12.4.2
   firebase_messaging: ^15.2.2
-  google_fonts: ^6.1.0  # 커스텀 폰트 지원
+  google_fonts: ^6.1.0
   url_launcher: ^6.1.14
   intl: ^0.19.0
-  logger: ^2.0.2  # 디버깅 개선
+  logger: ^2.0.2
   shared_preferences: ^2.0.15
   rxdart: ^0.27.7
   table_calendar: ^3.0.9
-
+  timezone: ^0.9.0 # 시간대 처리 추가
 
 dev_dependencies:
   flutter_test:
@@ -38,12 +40,10 @@ flutter:
     - assets/bulls_fighter.webp
     - assets/dartslive.webp
     - assets/phoenix.webp
+    - lib/l10n/app_en.arb # 영어 언어팩
+    - lib/l10n/app_ko.arb # 한국어 언어팩
+    - lib/l10n/app_ja.arb # 일본어 언어팩 (필요 시 추가)
+    - lib/l10n/app_zh.arb # 중국어 (간체)
+    - lib/l10n/app_zh_TW.arb # 대만어 (정체)
   uses-material-design: true
-
-  # 커스텀 폰트 예시 (선택 사항)
-  # fonts:
-  #   - family: Roboto
-  #     fonts:
-  #       - asset: assets/fonts/Roboto-Regular.ttf
-  #       - asset: assets/fonts/Roboto-Bold.ttf
-  #         weight: 700
+  generate: true # 언어팩 코드 생성 활성화
