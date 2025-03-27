@@ -5,5 +5,20 @@
   "onlineUsers": "線上用戶",
   "offlineUsers": "離線用戶",
   "login": "登入",
-  "profile": "個人資料"
+  "profile": "個人資料",
+  "email": "電子郵件",
+  "password": "密碼",
+  "signUp": "註冊",
+  "userNotFound": "電子郵件不存在。",
+  "wrongPassword": "密碼錯誤。",
+  "invalidEmail": "電子郵件格式不正確。",
+  "userDisabled": "此帳戶已被禁用。",
+  "loginFailed": "登入失敗",
+  "chat": "聊天",
+  "more": "更多",
+  "logout": "登出",
+  "confirmLogout": "您確定要登出嗎？",
+  "cancel": "取消",
+  "confirm": "確認",
+  "logoutFailed": "登出失敗"
 }

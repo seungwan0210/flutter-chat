@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations: # 언어팩 지원 추가
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
   firebase_core: ^3.10.1
@@ -26,7 +26,7 @@ dependencies:
   shared_preferences: ^2.0.15
   rxdart: ^0.27.7
   table_calendar: ^3.0.9
-  timezone: ^0.9.0 # 시간대 처리 추가
+  timezone: ^0.9.0
 
 dev_dependencies:
   flutter_test:
@@ -40,10 +40,10 @@ flutter:
     - assets/bulls_fighter.webp
     - assets/dartslive.webp
     - assets/phoenix.webp
-    - lib/l10n/app_en.arb # 영어 언어팩
-    - lib/l10n/app_ko.arb # 한국어 언어팩
-    - lib/l10n/app_ja.arb # 일본어 언어팩 (필요 시 추가)
-    - lib/l10n/app_zh.arb # 중국어 (간체)
-    - lib/l10n/app_zh_TW.arb # 대만어 (정체)
+    - lib/l10n/app_en.arb
+    - lib/l10n/app_ko.arb
+    - lib/l10n/app_ja.arb
+    - lib/l10n/app_zh.arb
+    - lib/l10n/app_zh_TW.arb
   uses-material-design: true
-  generate: true # 언어팩 코드 생성 활성화
+  generate: true

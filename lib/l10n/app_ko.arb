@@ -5,5 +5,20 @@
   "onlineUsers": "온라인 유저",
   "offlineUsers": "오프라인 유저",
   "login": "로그인",
-  "profile": "프로필"
+  "profile": "프로필",
+  "email": "이메일",
+  "password": "비밀번호",
+  "signUp": "회원가입",
+  "userNotFound": "이메일이 존재하지 않습니다.",
+  "wrongPassword": "비밀번호가 올바르지 않습니다.",
+  "invalidEmail": "이메일 형식이 올바르지 않습니다.",
+  "userDisabled": "이 계정은 비활성화되었습니다.",
+  "loginFailed": "로그인 실패",
+  "chat": "채팅",
+  "more": "더보기",
+  "logout": "로그아웃",
+  "confirmLogout": "정말 로그아웃 하시겠습니까?",
+  "cancel": "취소",
+  "confirm": "확인",
+  "logoutFailed": "로그아웃 실패"
 }

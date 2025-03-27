@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart'; // Logger 패키지 필요
+import 'package:logger/logger.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
-  const SignUpPage({super.key});
+  final void Function(Locale)? onLocaleChange; // 언어 변경 콜백 (선택적)
+
+  const SignUpPage({super.key, this.onLocaleChange});
 
   @override
   _SignUpPageState createState() => _SignUpPageState();
@@ -20,8 +23,8 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isPasswordVisible = false; // 비밀번호 보이기/숨기기 기능
-  bool _isSignUpEnabled = false; // 회원가입 버튼 활성화 상태
+  bool _isPasswordVisible = false;
+  bool _isSignUpEnabled = false;
 
   @override
   void initState() {
@@ -55,10 +58,10 @@ class _SignUpPageState extends State<SignUpPage> {
       await _firestore.collection("users").doc(user.uid).set({
         "uid": user.uid,
         "email": user.email,
-        "nickname": "새 유저",
+        "nickname": AppLocalizations.of(context)!.newUser ?? "새 유저", // 다국어 닉네임
         "profileImages": [],
         "mainProfileImage": "",
-        "dartBoard": "다트라이브",
+        "dartBoard": "다트라이브", // 다국어로 변경 가능
         "messageSetting": "all",
         "status": "online",
         "createdAt": FieldValue.serverTimestamp(),
@@ -78,13 +81,13 @@ class _SignUpPageState extends State<SignUpPage> {
   String _getErrorMessage(String code) {
     switch (code) {
       case "email-already-in-use":
-        return "이미 사용 중인 이메일입니다.";
+        return AppLocalizations.of(context)!.emailAlreadyInUse ?? "이미 사용 중인 이메일입니다.";
       case "invalid-email":
-        return "이메일 형식이 올바르지 않습니다.";
+        return AppLocalizations.of(context)!.invalidEmail ?? "이메일 형식이 올바르지 않습니다.";
       case "weak-password":
-        return "비밀번호는 6자 이상이어야 합니다.";
+        return AppLocalizations.of(context)!.weakPassword ?? "비밀번호는 6자 이상이어야 합니다.";
       default:
-        return "회원가입 실패: $code";
+        return "${AppLocalizations.of(context)!.signUpFailed ?? '회원가입 실패'}: $code";
     }
   }
 
@@ -110,7 +113,7 @@ class _SignUpPageState extends State<SignUpPage> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(builder: (context) => LoginPage(onLocaleChange: widget.onLocaleChange!)),
         );
       }
     } on FirebaseAuthException catch (authError) {
@@ -128,7 +131,7 @@ class _SignUpPageState extends State<SignUpPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("회원가입 중 오류 발생: $e", style: const TextStyle(color: Colors.white)),
+            content: Text("${AppLocalizations.of(context)!.signUpFailed}: $e", style: const TextStyle(color: Colors.white)),
             backgroundColor: Colors.red,
           ),
         );
@@ -156,9 +159,9 @@ class _SignUpPageState extends State<SignUpPage> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 50),
-                const Text(
-                  "회원가입",
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context)!.signUp, // "회원가입"
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.blueAccent,
@@ -170,7 +173,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.email, color: Colors.blueAccent),
-                    labelText: "이메일",
+                    labelText: AppLocalizations.of(context)!.email, // "이메일"
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -184,7 +187,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
-                    labelText: "비밀번호",
+                    labelText: AppLocalizations.of(context)!.password, // "비밀번호"
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -212,7 +215,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       const CircularProgressIndicator(),
                       const SizedBox(height: 16),
                       Text(
-                        "Darts Circle 로딩 중...",
+                        "${AppLocalizations.of(context)!.appTitle} 로딩 중...", // 다국어 로딩 메시지
                         style: TextStyle(
                           fontSize: 16,
                           color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -230,9 +233,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "회원가입",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  child: Text(
+                    AppLocalizations.of(context)!.signUp, // "회원가입"
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -240,11 +243,42 @@ class _SignUpPageState extends State<SignUpPage> {
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: const Text(
-                    "이미 계정이 있으신가요? 로그인",
-                    style: TextStyle(fontSize: 16, color: Colors.blueAccent),
+                  child: Text(
+                    AppLocalizations.of(context)!.haveAccountLogin ?? "이미 계정이 있으신가요? 로그인", // 새 키 추가
+                    style: const TextStyle(fontSize: 16, color: Colors.blueAccent),
                   ),
                 ),
+                // 선택적: 언어 선택 드롭다운 추가
+                if (widget.onLocaleChange != null) ...[
+                  const SizedBox(height: 20),
+                  DropdownButton<Locale>(
+                    value: AppLocalizations.supportedLocales.firstWhere(
+                          (locale) =>
+                      locale.languageCode == Localizations.localeOf(context).languageCode &&
+                          (locale.countryCode == Localizations.localeOf(context).countryCode ||
+                              (locale.countryCode == null && Localizations.localeOf(context).countryCode == '')),
+                      orElse: () => AppLocalizations.supportedLocales.first,
+                    ),
+                    items: AppLocalizations.supportedLocales.map((locale) {
+                      return DropdownMenuItem<Locale>(
+                        value: locale,
+                        child: Text({
+                          'en': 'English',
+                          'ko': '한국어',
+                          'ja': '日本語',
+                          'zh': '中文 (简体)',
+                          'zh_TW': '中文 (繁體)',
+                        }[locale.toString()] ?? locale.toString()),
+                      );
+                    }).toList(),
+                    onChanged: (Locale? newLocale) {
+                      if (newLocale != null) {
+                        _logger.i("SignUpPage: Dropdown selected: ${newLocale.toString()}");
+                        widget.onLocaleChange!(newLocale);
+                      }
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -252,4 +286,13 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
     );
   }
+}
+
+// .arb 파일에 추가해야 할 새 키 정의
+extension AppLocalizationsExtension on AppLocalizations {
+  String get newUser => "New User"; // 기본 닉네임
+  String get emailAlreadyInUse => "Email already in use";
+  String get weakPassword => "Password must be at least 6 characters";
+  String get signUpFailed => "Sign-up failed";
+  String get haveAccountLogin => "Already have an account? Log in";
 }

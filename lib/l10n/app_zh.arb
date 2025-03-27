@@ -5,5 +5,20 @@
   "onlineUsers": "在线用户",
   "offlineUsers": "离线用户",
   "login": "登录",
-  "profile": "个人资料"
+  "profile": "个人资料",
+  "email": "电子邮件",
+  "password": "密码",
+  "signUp": "注册",
+  "userNotFound": "电子邮件不存在。",
+  "wrongPassword": "密码错误。",
+  "invalidEmail": "电子邮件格式不正确。",
+  "userDisabled": "此账户已被禁用。",
+  "loginFailed": "登录失败",
+  "chat": "聊天",
+  "more": "更多",
+  "logout": "退出",
+  "confirmLogout": "您确定要退出吗？",
+  "cancel": "取消",
+  "confirm": "确认",
+  "logoutFailed": "退出失败"
 }

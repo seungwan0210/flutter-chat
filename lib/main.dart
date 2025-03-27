@@ -6,9 +6,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:generated/l10n.dart'; // 언어팩 파일
-import 'pages/login_page.dart';
-import 'pages/main_page.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:dartschat/pages/login_page.dart';
+import 'package:dartschat/pages/main_page.dart';
 import 'firebase_options.dart';
 import 'services/firestore_service.dart';
 
@@ -32,7 +32,7 @@ void main() async {
   if (!hasMigrated) {
     try {
       await firestoreService.migrateProfileImagesToNewFormat();
-      await prefs.setBool('hasMigratedProfileImagesToNewFormat', true);
+      await prefs.setBool('hasMigratedProfileImagesToNewFormat', true); // 오류 수정
       Logger().i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
     } catch (e) {
       Logger().e("Firestore 데이터 마이그레이션 실패: $e");
@@ -41,28 +41,63 @@ void main() async {
     Logger().i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
   }
 
-  String initialLanguage = prefs.getString('language') ?? 'ko';
-  runApp(DartChatApp(initialLocale: Locale(initialLanguage)));
+  runApp(const DartChatApp());
 }
 
-class DartChatApp extends StatelessWidget {
-  final Locale initialLocale;
+class DartChatApp extends StatefulWidget {
+  const DartChatApp({super.key});
 
-  const DartChatApp({required this.initialLocale, super.key});
+  @override
+  _DartChatAppState createState() => _DartChatAppState();
+}
+
+class _DartChatAppState extends State<DartChatApp> {
+  Locale? _locale;
+  final Logger _logger = Logger();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocale();
+  }
+
+  Future<void> _loadLocale() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? languageCode = prefs.getString('languageCode');
+    String? countryCode = prefs.getString('countryCode');
+    if (languageCode != null) {
+      setState(() {
+        _locale = Locale(languageCode, countryCode ?? '');
+        _logger.i("Initial locale loaded: ${_locale.toString()}");
+      });
+    } else {
+      _logger.i("No saved locale found, using device default");
+    }
+  }
+
+  void _setLocale(Locale locale) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('languageCode', locale.languageCode);
+    await prefs.setString('countryCode', locale.countryCode ?? '');
+    setState(() {
+      _locale = locale;
+      _logger.i("Locale updated to: ${locale.toString()}");
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    _logger.i("Building MaterialApp with locale: ${_locale?.toString() ?? 'default'}");
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      locale: initialLocale,
-      localizationsDelegates: [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
+      locale: _locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      title: 'Darts Circle',
+      localeResolutionCallback: (locale, supportedLocales) {
+        final resolvedLocale = _locale ?? locale ?? supportedLocales.first;
+        _logger.i("Resolved locale: ${resolvedLocale.toString()}");
+        return resolvedLocale;
+      },
       theme: ThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: Colors.white,
@@ -148,16 +183,18 @@ class DartChatApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       initialRoute: '/',
       routes: {
-        '/': (context) => const AuthCheck(),
-        '/login': (context) => const LoginPage(),
-        '/main': (context) => const MainPage(),
+        '/': (context) => AuthCheck(onLocaleChange: _setLocale),
+        '/login': (context) => LoginPage(onLocaleChange: _setLocale),
+        '/main': (context) => MainPage(onLocaleChange: _setLocale),
       },
     );
   }
 }
 
 class AuthCheck extends StatefulWidget {
-  const AuthCheck({super.key});
+  final void Function(Locale) onLocaleChange;
+
+  const AuthCheck({super.key, required this.onLocaleChange});
 
   @override
   _AuthCheckState createState() => _AuthCheckState();
@@ -292,7 +329,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    "Darts Circle 로딩 중...",
+                    "${AppLocalizations.of(context)!.appTitle} 로딩 중...",
                     style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
                   ),
                 ],
@@ -304,7 +341,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
         final user = snapshot.data;
         if (user == null) {
           _logger.i("No user logged in, redirecting to LoginPage");
-          return const LoginPage();
+          return LoginPage(onLocaleChange: widget.onLocaleChange);
         }
 
         _logger.i("User logged in, UID: ${user.uid}");
@@ -321,7 +358,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
                       const CircularProgressIndicator(),
                       const SizedBox(height: 16),
                       Text(
-                        "Darts Circle 로딩 중...",
+                        "${AppLocalizations.of(context)!.appTitle} 로딩 중...",
                         style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
                       ),
                     ],
@@ -341,12 +378,12 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
 
             if (snapshot.hasData && snapshot.data!) {
               _logger.i("User is active, navigating to MainPage");
-              return const MainPage();
+              return MainPage(onLocaleChange: widget.onLocaleChange);
             }
 
             _logger.w("User is inactive or blocked, signing out and redirecting to LoginPage");
             FirebaseAuth.instance.signOut();
-            return const LoginPage();
+            return LoginPage(onLocaleChange: widget.onLocaleChange);
           },
         );
       },

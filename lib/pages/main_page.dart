@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dartschat/generated/app_localizations.dart';
 import 'package:dartschat/pages/home_page.dart';
 import 'package:dartschat/pages/friends_page.dart';
 import 'package:dartschat/pages/chat_list_page.dart';
 import 'package:dartschat/pages/profile_page.dart';
 import 'package:dartschat/pages/more_page.dart';
 import 'package:dartschat/pages/login_page.dart';
-import 'package:logger/logger.dart'; // Logger 패키지 추가 필요
+import 'package:logger/logger.dart';
 
 class MainPage extends StatefulWidget {
   final int initialIndex;
+  final void Function(Locale)? onLocaleChange;
 
-  const MainPage({super.key, this.initialIndex = 0});
+  const MainPage({super.key, this.initialIndex = 0, this.onLocaleChange});
 
   @override
   _MainPageState createState() => _MainPageState();
@@ -20,7 +22,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   late int _selectedIndex;
-  final Logger _logger = Logger(); // Logger 인스턴스 추가
+  final Logger _logger = Logger();
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -38,7 +40,6 @@ class _MainPageState extends State<MainPage> {
     _checkAccountStatus();
   }
 
-  /// 계정 활성화 상태 및 차단 횟수 확인
   Future<void> _checkAccountStatus() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -48,7 +49,16 @@ class _MainPageState extends State<MainPage> {
         if (!userDoc.exists) {
           _logger.w("User document does not exist for UID: ${user.uid}, redirecting to LoginPage");
           await FirebaseAuth.instance.signOut();
-          Navigator.pushReplacementNamed(context, '/login');
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => LoginPage(
+                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                ),
+              ),
+            );
+          }
           return;
         }
 
@@ -57,19 +67,36 @@ class _MainPageState extends State<MainPage> {
 
         _logger.i("User document exists: ${userDoc.exists}, blockedByCount: $blockedByCount, isActive: $isActive");
 
-        // 10회 이상 차단당한 경우 계정 비활성화 처리
         if (blockedByCount >= 10 && isActive) {
           await FirebaseFirestore.instance.collection("users").doc(user.uid).update({"isActive": false});
           _logger.w("User ${user.uid} blocked 10+ times, deactivated account.");
           await FirebaseAuth.instance.signOut();
-          Navigator.pushReplacementNamed(context, '/login');
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => LoginPage(
+                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                ),
+              ),
+            );
+          }
           return;
         }
 
         if (!isActive) {
           _logger.w("User is inactive, signing out and redirecting to LoginPage");
           await FirebaseAuth.instance.signOut();
-          Navigator.pushReplacementNamed(context, '/login');
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => LoginPage(
+                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                ),
+              ),
+            );
+          }
         } else {
           _logger.i("User is active, staying on MainPage");
         }
@@ -77,13 +104,22 @@ class _MainPageState extends State<MainPage> {
         _logger.e("Error checking account status: $e");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("계정 상태 확인 중 오류 발생: $e")),
+            SnackBar(content: Text("${AppLocalizations.of(context)!.loginFailed}: $e")),
           );
         }
       }
     } else {
       _logger.w("No user logged in, redirecting to LoginPage");
-      Navigator.pushReplacementNamed(context, '/login');
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LoginPage(
+              onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -125,31 +161,31 @@ class _MainPageState extends State<MainPage> {
           type: BottomNavigationBarType.fixed,
           showSelectedLabels: true,
           showUnselectedLabels: false,
-          items: const [
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home, size: 28),
-              activeIcon: Icon(Icons.home, size: 32),
-              label: "전체",
+              icon: const Icon(Icons.home, size: 28),
+              activeIcon: const Icon(Icons.home, size: 32),
+              label: AppLocalizations.of(context)!.home,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.group, size: 28),
-              activeIcon: Icon(Icons.group, size: 32),
-              label: "친구",
+              icon: const Icon(Icons.group, size: 28),
+              activeIcon: const Icon(Icons.group, size: 32),
+              label: AppLocalizations.of(context)!.friends,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.chat, size: 28),
-              activeIcon: Icon(Icons.chat, size: 32),
-              label: "채팅",
+              icon: const Icon(Icons.chat, size: 28),
+              activeIcon: const Icon(Icons.chat, size: 32),
+              label: AppLocalizations.of(context)!.chat,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person, size: 28),
-              activeIcon: Icon(Icons.person, size: 32),
-              label: "프로필",
+              icon: const Icon(Icons.person, size: 28),
+              activeIcon: const Icon(Icons.person, size: 32),
+              label: AppLocalizations.of(context)!.profile,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.more_horiz, size: 28),
-              activeIcon: Icon(Icons.more_horiz, size: 32),
-              label: "더보기",
+              icon: const Icon(Icons.more_horiz, size: 28),
+              activeIcon: const Icon(Icons.more_horiz, size: 32),
+              label: AppLocalizations.of(context)!.more,
             ),
           ],
         ),

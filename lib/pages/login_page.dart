@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart'; // Logger 패키지 필요
+import 'package:logger/logger.dart';
+import 'package:dartschat/generated/app_localizations.dart';
 import 'main_page.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final void Function(Locale) onLocaleChange; // 필수로 변경
+
+  const LoginPage({super.key, required this.onLocaleChange});
 
   @override
   _LoginPageState createState() => _LoginPageState();
@@ -106,22 +109,22 @@ class _LoginPageState extends State<LoginPage> {
       return isActive;
     } catch (e) {
       _logger.e("Error checking account status: $e");
-      return true; // 오류 발생 시 기본값 true 반환
+      return true;
     }
   }
 
   String _getErrorMessage(String code) {
     switch (code) {
       case "user-not-found":
-        return "이메일이 존재하지 않습니다.";
+        return AppLocalizations.of(context)!.userNotFound;
       case "wrong-password":
-        return "비밀번호가 올바르지 않습니다.";
+        return AppLocalizations.of(context)!.wrongPassword;
       case "invalid-email":
-        return "이메일 형식이 올바르지 않습니다.";
+        return AppLocalizations.of(context)!.invalidEmail;
       case "user-disabled":
-        return "이 계정은 비활성화되었습니다.";
+        return AppLocalizations.of(context)!.userDisabled;
       default:
-        return "로그인 실패: $code";
+        return "${AppLocalizations.of(context)!.loginFailed}: $code";
     }
   }
 
@@ -157,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
         _logger.w("User $uid is inactive, signing out");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("이 계정은 비활성화되었습니다.")),
+            SnackBar(content: Text(AppLocalizations.of(context)!.userDisabled)),
           );
         }
         return;
@@ -184,7 +187,7 @@ class _LoginPageState extends State<LoginPage> {
       _logger.e("Unexpected error during login: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("로그인 중 오류 발생: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.loginFailed}: $e")),
         );
       }
     } finally {
@@ -199,6 +202,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    Locale currentLocale = Localizations.localeOf(context);
+    _logger.i("Building LoginPage with current locale: ${currentLocale.toString()}");
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
@@ -217,9 +222,9 @@ class _LoginPageState extends State<LoginPage> {
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  "Darts Circle",
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context)!.appTitle,
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.blueAccent,
@@ -230,7 +235,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: "이메일",
+                    labelText: AppLocalizations.of(context)!.email,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.email, color: Colors.blueAccent),
                     filled: true,
@@ -242,7 +247,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
-                    labelText: "비밀번호",
+                    labelText: AppLocalizations.of(context)!.password,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
                     filled: true,
@@ -261,9 +266,9 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "로그인",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  child: Text(
+                    AppLocalizations.of(context)!.login,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -274,10 +279,38 @@ class _LoginPageState extends State<LoginPage> {
                       MaterialPageRoute(builder: (context) => const SignUpPage()),
                     );
                   },
-                  child: const Text(
-                    "회원가입",
-                    style: TextStyle(fontSize: 16, color: Colors.blueAccent),
+                  child: Text(
+                    AppLocalizations.of(context)!.signUp,
+                    style: const TextStyle(fontSize: 16, color: Colors.blueAccent),
                   ),
+                ),
+                const SizedBox(height: 20),
+                DropdownButton<Locale>(
+                  value: AppLocalizations.supportedLocales.firstWhere(
+                        (locale) =>
+                    locale.languageCode == currentLocale.languageCode &&
+                        (locale.countryCode == currentLocale.countryCode ||
+                            (locale.countryCode == null && currentLocale.countryCode == '')),
+                    orElse: () => AppLocalizations.supportedLocales.first,
+                  ),
+                  items: AppLocalizations.supportedLocales.map((locale) {
+                    return DropdownMenuItem<Locale>(
+                      value: locale,
+                      child: Text({
+                        'en': 'English',
+                        'ko': '한국어',
+                        'ja': '日本語',
+                        'zh': '中文 (简体)',
+                        'zh_TW': '中文 (繁體)',
+                      }[locale.toString()] ?? locale.toString()),
+                    );
+                  }).toList(),
+                  onChanged: (Locale? newLocale) {
+                    if (newLocale != null) {
+                      _logger.i("Dropdown selected: ${newLocale.toString()}");
+                      widget.onLocaleChange(newLocale);
+                    }
+                  },
                 ),
               ],
             ),

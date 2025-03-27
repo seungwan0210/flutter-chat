@@ -5,5 +5,20 @@
   "onlineUsers": "Online Users",
   "offlineUsers": "Offline Users",
   "login": "Login",
-  "profile": "Profile"
+  "profile": "Profile",
+  "email": "Email",
+  "password": "Password",
+  "signUp": "Sign Up",
+  "userNotFound": "Email does not exist.",
+  "wrongPassword": "Password is incorrect.",
+  "invalidEmail": "Email format is invalid.",
+  "userDisabled": "This account is disabled.",
+  "loginFailed": "Login failed",
+  "chat": "Chat",
+  "more": "More",
+  "logout": "Logout",
+  "confirmLogout": "Are you sure you want to log out?",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "logoutFailed": "Logout failed"
 }

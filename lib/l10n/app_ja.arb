@@ -5,5 +5,20 @@
   "onlineUsers": "オンラインユーザー",
   "offlineUsers": "オフラインユーザー",
   "login": "ログイン",
-  "profile": "プロフィール"
+  "profile": "プロフィール",
+  "email": "メール",
+  "password": "パスワード",
+  "signUp": "会員登録",
+  "userNotFound": "メールが存在しません。",
+  "wrongPassword": "パスワードが正しくありません。",
+  "invalidEmail": "メールの形式が正しくありません。",
+  "userDisabled": "このアカウントは無効化されています。",
+  "loginFailed": "ログイン失敗",
+  "chat": "チャット",
+  "more": "もっと見る",
+  "logout": "ログアウト",
+  "confirmLogout": "本当にログアウトしますか？",
+  "cancel": "キャンセル",
+  "confirm": "確認",
+  "logoutFailed": "ログアウト失敗"
 }
