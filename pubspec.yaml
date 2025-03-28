@@ -40,6 +40,18 @@ flutter:
     - assets/bulls_fighter.webp
     - assets/dartslive.webp
     - assets/phoenix.webp
+    - assets/bronze_1.png
+    - assets/bronze_2.png
+    - assets/bronze_3.png
+    - assets/silver_1.png
+    - assets/silver_2.png
+    - assets/gold_1.png
+    - assets/gold_2.png
+    - assets/platinum_1.png
+    - assets/platinum_2.png
+    - assets/emerald.png
+    - assets/diamond.png
+    - assets/pro.png
     - lib/l10n/app_en.arb
     - lib/l10n/app_ko.arb
     - lib/l10n/app_ja.arb

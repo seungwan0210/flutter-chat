@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart'; // Logger 추가
+import 'package:logger/logger.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 언어팩 임포트
 import '../services/firestore_service.dart';
 import 'chat_page.dart';
 import 'play_summary_page.dart';
@@ -29,7 +31,7 @@ class ProfileDetailPage extends StatefulWidget {
 class _ProfileDetailPageState extends State<ProfileDetailPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
-  final Logger _logger = Logger(); // Logger 인스턴스 추가
+  final Logger _logger = Logger();
 
   bool _isBlocked = false;
   bool _isFriend = false;
@@ -44,7 +46,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   String _rank = "💀";
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
-  bool _isDiamond = false;
+  bool _isPro = false; // isDiamond -> isPro
   bool _isActive = true;
 
   @override
@@ -68,17 +70,19 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     return "${date.year}-${date.month}-${date.day}";
   }
 
-  String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎";
-    if (totalViews >= 20000) return "✨";
-    if (totalViews >= 10000) return "⭐";
-    if (totalViews >= 5000) return "🌟";
-    if (totalViews >= 3000) return "🏆";
-    if (totalViews >= 2500) return "🏅";
-    if (totalViews >= 2200) return "🎖️";
-    if (totalViews >= 1500) return "🥇";
-    if (totalViews >= 500) return "🥈";
-    if (totalViews >= 300) return "🥉";
+  String _calculateRank(int totalViews, bool isPro) {
+    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (totalViews >= 20000) return "assets/diamond.png";
+    if (totalViews >= 15000) return "assets/emerald.png";
+    if (totalViews >= 10000) return "assets/platinum_2.png";
+    if (totalViews >= 5000) return "assets/platinum_1.png";
+    if (totalViews >= 3200) return "assets/gold_2.png";
+    if (totalViews >= 2200) return "assets/gold_1.png";
+    if (totalViews >= 1800) return "assets/silver_2.png";
+    if (totalViews >= 1200) return "assets/silver_1.png";
+    if (totalViews >= 800) return "assets/bronze_3.png";
+    if (totalViews >= 500) return "assets/bronze_2.png";
+    if (totalViews >= 300) return "assets/bronze_1.png";
     return "💀";
   }
 
@@ -115,7 +119,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error checking friend status: $e");
       if (mounted) {
         setState(() {
-          _errorMessage = "친구 상태 확인 중 오류: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorCheckingFriendStatus}: $e";
         });
       }
     }
@@ -130,7 +134,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       DocumentSnapshot profileSnapshot = await profileRef.get();
       if (!profileSnapshot.exists || !(profileSnapshot["isActive"] ?? true)) return;
 
-      await _firestoreService.incrementProfileViews(viewedUserId); // FirestoreService 메서드 활용
+      await _firestoreService.incrementProfileViews(viewedUserId);
       _logger.i("Profile view increased for userId: $viewedUserId");
 
       DocumentSnapshot updatedProfile = await profileRef.get();
@@ -140,8 +144,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           setState(() {
             totalViews = updatedData["totalViews"] ?? 0;
             dailyViews = updatedData["todayViews"] ?? 0;
-            _isDiamond = updatedData["isDiamond"] ?? false;
-            _rank = _calculateRank(totalViews, _isDiamond);
+            _isPro = updatedData["isPro"] ?? false;
+            _rank = _calculateRank(totalViews, _isPro);
           });
         }
       }
@@ -149,7 +153,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error increasing profile view: $e");
       if (mounted) {
         setState(() {
-          _errorMessage = "프로필 조회수 증가 중 오류: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorIncreasingProfileViews}: $e";
         });
       }
     }
@@ -162,13 +166,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         if (mounted) {
           setState(() {
             _rating = userData["rating"] ?? 0;
-            _dartBoard = userData["dartBoard"] ?? "정보 없음";
-            _homeShop = userData["homeShop"] ?? "없음";
+            _dartBoard = userData["dartBoard"] ?? AppLocalizations.of(context)!.none;
+            _homeShop = userData["homeShop"] ?? AppLocalizations.of(context)!.none;
             totalViews = userData["totalViews"] ?? 0;
             dailyViews = userData["todayViews"] ?? 0;
-            messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
-            _isDiamond = userData["isDiamond"] ?? false;
-            _rank = _calculateRank(totalViews, _isDiamond);
+            messageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+            _isPro = userData["isPro"] ?? false;
+            _rank = _calculateRank(totalViews, _isPro);
             _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
             _mainProfileImage = userData["mainProfileImage"];
             _isActive = userData["isActive"] ?? true;
@@ -178,7 +182,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       } else {
         if (mounted) {
           setState(() {
-            _errorMessage = "유저 정보를 찾을 수 없습니다.";
+            _errorMessage = AppLocalizations.of(context)!.userInfoNotFound;
           });
         }
       }
@@ -186,7 +190,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error loading user info: $e");
       if (mounted) {
         setState(() {
-          _errorMessage = "유저 정보를 불러오는 중 오류: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingUserInfo}: $e";
         });
       }
     }
@@ -200,12 +204,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           _isBlocked = !_isBlocked;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isBlocked ? "사용자가 차단되었습니다." : "차단이 해제되었습니다.")),
+          SnackBar(content: Text(_isBlocked ? AppLocalizations.of(context)!.userBlocked : AppLocalizations.of(context)!.blockReleased)),
         );
       }
       _logger.i("Block status toggled: isBlocked=$_isBlocked for userId: ${widget.userId}");
 
-      // 계정 비활성화 상태 확인 및 UI 업데이트
       bool isActive = await _firestoreService.isUserActive(widget.userId);
       if (mounted) {
         setState(() {
@@ -216,7 +219,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error toggling block status: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("차단/차단 해제 중 오류가 발생했습니다: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorTogglingBlock}: $e")),
         );
       }
     }
@@ -227,9 +230,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "프로필 상세",
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.profileDetail,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -249,11 +252,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             _buildProfileInfo(),
             const SizedBox(height: 16),
             if (!_isActive)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  "이 계정은 비활성화되었습니다.",
-                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                  AppLocalizations.of(context)!.accountDeactivated,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             if (_isActive) _buildActionButtons(),
@@ -355,9 +358,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatItem("Total", "$totalViews"),
-          _buildStatItem("Today", "$dailyViews"),
-          _buildStatItem("Rank", _rank),
+          _buildStatItem(AppLocalizations.of(context)!.total, "$totalViews"),
+          _buildStatItem(AppLocalizations.of(context)!.today, "$dailyViews"),
+          _buildStatItem(AppLocalizations.of(context)!.rank, _rank),
         ],
       ),
     );
@@ -366,7 +369,13 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
-        Text(
+        title == AppLocalizations.of(context)!.rank && value.startsWith("assets/")
+            ? Image.asset(
+          value,
+          width: 24,
+          height: 24,
+        )
+            : Text(
           value,
           style: const TextStyle(
             fontSize: 18,
@@ -404,10 +413,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       ),
       child: Column(
         children: [
-          _buildInfoRow(Icons.store, "홈샵", _homeShop),
-          _buildInfoRow(Icons.star, "레이팅", _rating > 0 ? "$_rating" : "미등록"),
-          _buildInfoRow(Icons.sports_esports, "다트 보드", _dartBoard),
-          _buildInfoRow(Icons.message, "메시지 설정", messageSetting),
+          _buildInfoRow(Icons.store, AppLocalizations.of(context)!.homeShop, _homeShop),
+          _buildInfoRow(Icons.star, AppLocalizations.of(context)!.rating, _rating > 0 ? "$_rating" : AppLocalizations.of(context)!.notRegistered),
+          _buildInfoRow(Icons.sports_esports, AppLocalizations.of(context)!.dartBoard, _dartBoard),
+          _buildInfoRow(Icons.message, AppLocalizations.of(context)!.messageSetting, messageSetting),
         ],
       ),
     );
@@ -449,7 +458,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           children: [
             _buildActionButton(
               icon: Icons.settings,
-              label: "프로필 설정",
+              label: AppLocalizations.of(context)!.profileSettings,
               gradient: const LinearGradient(
                 colors: [Colors.amber, Colors.orange],
               ),
@@ -460,7 +469,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             const SizedBox(height: 12),
             _buildActionButton(
               icon: Icons.timeline,
-              label: "오늘의 플레이 요약",
+              label: AppLocalizations.of(context)!.todayPlaySummary,
               gradient: const LinearGradient(
                 colors: [Colors.amber, Colors.orange],
               ),
@@ -478,7 +487,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           children: [
             _buildActionButton(
               icon: Icons.message,
-              label: "메시지 보내기",
+              label: AppLocalizations.of(context)!.sendMessage,
               gradient: const LinearGradient(
                 colors: [Colors.amber, Colors.orange],
               ),
@@ -529,7 +538,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               }
                   : () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
+                  SnackBar(content: Text(AppLocalizations.of(context)!.cannotMessageDeactivated)),
                 );
               },
             ),
@@ -542,9 +551,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 }
                 if (snapshot.hasError) {
                   _logger.e("Error loading blocked status: ${snapshot.error}");
-                  return const Text(
-                    "차단 상태 로드 중 오류",
-                    style: TextStyle(color: Colors.redAccent),
+                  return Text(
+                    AppLocalizations.of(context)!.errorLoadingBlockedStatus,
+                    style: const TextStyle(color: Colors.redAccent),
                   );
                 }
 
@@ -566,11 +575,11 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
   Widget _buildFriendActionButton() {
     if (_isBlocked) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
-          "차단된 사용자입니다.",
-          style: TextStyle(
+          AppLocalizations.of(context)!.blockedUser,
+          style: const TextStyle(
             fontSize: 16,
             color: Colors.redAccent,
             fontWeight: FontWeight.w600,
@@ -580,18 +589,18 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     } else if (_isFriend) {
       return _buildActionButton(
         icon: Icons.person_remove,
-        label: "친구 삭제",
+        label: AppLocalizations.of(context)!.removeFriend,
         gradient: const LinearGradient(
           colors: [Colors.redAccent, Colors.red],
         ),
         onPressed: _removeFriend,
       );
     } else if (_isRequestPending) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
-          "요청됨",
-          style: TextStyle(
+          AppLocalizations.of(context)!.requested,
+          style: const TextStyle(
             fontSize: 16,
             color: Colors.grey,
             fontWeight: FontWeight.w600,
@@ -601,7 +610,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     } else {
       return _buildActionButton(
         icon: Icons.person_add,
-        label: "친구 추가",
+        label: AppLocalizations.of(context)!.addFriend,
         gradient: const LinearGradient(
           colors: [Colors.amber, Colors.orange],
         ),
@@ -609,7 +618,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             ? _sendFriendRequest
             : () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("비활성화된 계정은 친구로 추가할 수 없습니다.")),
+            SnackBar(content: Text(AppLocalizations.of(context)!.cannotAddDeactivated)),
           );
         },
       );
@@ -619,7 +628,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   Widget _buildBlockActionButton() {
     return _buildActionButton(
       icon: _isBlocked ? Icons.block : Icons.block_outlined,
-      label: _isBlocked ? "차단 해제" : "차단",
+      label: _isBlocked ? AppLocalizations.of(context)!.unblock : AppLocalizations.of(context)!.block,
       gradient: _isBlocked
           ? const LinearGradient(colors: [Colors.green, Colors.lightGreen])
           : const LinearGradient(colors: [Colors.redAccent, Colors.red]),
@@ -670,7 +679,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           _isRequestPending = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구 요청을 보냈습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.friendRequestSent)),
         );
       }
       _logger.i("Friend request sent to userId: ${widget.userId}");
@@ -678,7 +687,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error sending friend request: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 요청 중 오류가 발생했습니다: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorSendingFriendRequest}: $e")),
         );
       }
     }
@@ -692,7 +701,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           _isFriend = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구가 삭제되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.friendRemoved)),
         );
       }
       _logger.i("Friend removed: userId: ${widget.userId}");
@@ -700,7 +709,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
       _logger.e("Error removing friend: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 삭제 중 오류가 발생했습니다: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorRemovingFriend}: $e")),
         );
       }
     }

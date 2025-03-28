@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 언어팩 임포트
 import 'chat_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 import 'package:dartschat/pages/settings/blocked_users_page.dart';
-import 'package:dartschat/pages/main_page.dart'; // MainPage 임포트
+import 'package:dartschat/pages/main_page.dart';
 
 class FriendInfoPage extends StatefulWidget {
   final String receiverId;
@@ -38,7 +40,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
   bool _isBlocked = false;
-  bool _isDiamond = false;
+  bool _isPro = false; // isDiamond -> isPro
   bool _isActive = true;
 
   @override
@@ -74,8 +76,8 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             _friendData = friendData;
             totalViews = _friendData!["totalViews"] ?? 0;
             dailyViews = _friendData!["todayViews"] ?? 0;
-            _isDiamond = _friendData!["isDiamond"] ?? false;
-            _rank = _calculateRank(totalViews, _isDiamond);
+            _isPro = _friendData!["isPro"] ?? false; // isDiamond -> isPro
+            _rank = _calculateRank(totalViews, _isPro);
             _profileImages = _firestoreService.sanitizeProfileImages(_friendData!["profileImages"] ?? []);
             _mainProfileImage = _friendData!["mainProfileImage"];
             _isActive = _friendData!["isActive"] ?? true;
@@ -90,7 +92,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             _isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("친구 정보를 불러올 수 없습니다.")),
+            SnackBar(content: Text(AppLocalizations.of(context)!.friendInfoNotFound)),
           );
         }
       }
@@ -102,7 +104,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 정보 불러오기 실패: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorLoadingFriendInfo}: $e")),
         );
       }
     }
@@ -132,7 +134,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     if (!_isActive) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("비활성화된 계정은 즐겨찾기에 추가할 수 없습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.cannotAddDeactivatedToFavorites)),
         );
       }
       return;
@@ -166,7 +168,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       _logger.e("Error toggling favorite status: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("즐겨찾기 설정 실패: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorTogglingFavorite}: $e")),
         );
       }
     }
@@ -176,7 +178,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     if (!_isActive) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("비활성화된 계정과는 메시지를 보낼 수 없습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.cannotMessageDeactivated)),
         );
       }
       return;
@@ -206,16 +208,16 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("친구 삭제"),
-        content: const Text("친구를 삭제하시겠습니까?"),
+        title: Text(AppLocalizations.of(context)!.removeFriend),
+        content: Text(AppLocalizations.of(context)!.confirmRemoveFriend),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("취소"),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("삭제", style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.remove, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -226,13 +228,13 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
         await _firestoreService.removeFriend(widget.receiverId);
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구가 삭제되었습니다.")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.friendRemoved)));
         }
         _logger.i("Friend removed: receiverId: ${widget.receiverId}");
       } catch (e) {
         _logger.e("Error removing friend: $e");
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 삭제에 실패했습니다.")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${AppLocalizations.of(context)!.errorRemovingFriend}: $e")));
         }
       }
     }
@@ -242,16 +244,16 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("사용자 차단"),
-        content: const Text("사용자를 차단하시겠습니까? 차단 시 친구 관계도 해제됩니다."),
+        title: Text(AppLocalizations.of(context)!.blockUser),
+        content: Text(AppLocalizations.of(context)!.confirmBlockUser),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("취소"),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("차단", style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.block, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -259,11 +261,8 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
 
     if (confirm == true) {
       try {
-        // 친구 관계 해제
         await _firestoreService.removeFriend(widget.receiverId);
-        // 사용자 차단
         await _firestoreService.toggleBlockUser(widget.receiverId, widget.receiverName, _profileImages);
-        // 즐겨찾기 삭제 (있는 경우)
         await _firestoreService.firestore
             .collection("users")
             .doc(_auth.currentUser!.uid)
@@ -277,35 +276,36 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             _isActive = isActive;
             _isBlocked = true;
           });
-          // HomePage로 이동 (MainPage의 initialIndex를 0으로 설정)
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 0)),
                 (Route<dynamic> route) => false,
           );
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("사용자가 차단되었습니다.")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.userBlocked)));
         }
         _logger.i("Friend blocked and removed: receiverId: ${widget.receiverId}");
       } catch (e) {
         _logger.e("Error blocking friend: $e");
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("친구 차단에 실패했습니다.")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${AppLocalizations.of(context)!.errorBlockingFriend}: $e")));
         }
       }
     }
   }
 
-  String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎";
-    if (totalViews >= 20000) return "✨";
-    if (totalViews >= 10000) return "⭐";
-    if (totalViews >= 5000) return "🌟";
-    if (totalViews >= 3000) return "🏆";
-    if (totalViews >= 2500) return "🏅";
-    if (totalViews >= 2200) return "🎖️";
-    if (totalViews >= 1500) return "🥇";
-    if (totalViews >= 500) return "🥈";
-    if (totalViews >= 300) return "🥉";
+  String _calculateRank(int totalViews, bool isPro) {
+    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (totalViews >= 20000) return "assets/diamond.png";
+    if (totalViews >= 15000) return "assets/emerald.png";
+    if (totalViews >= 10000) return "assets/platinum_2.png";
+    if (totalViews >= 5000) return "assets/platinum_1.png";
+    if (totalViews >= 3200) return "assets/gold_2.png";
+    if (totalViews >= 2200) return "assets/gold_1.png";
+    if (totalViews >= 1800) return "assets/silver_2.png";
+    if (totalViews >= 1200) return "assets/silver_1.png";
+    if (totalViews >= 800) return "assets/bronze_3.png";
+    if (totalViews >= 500) return "assets/bronze_2.png";
+    if (totalViews >= 300) return "assets/bronze_1.png";
     return "💀";
   }
 
@@ -314,9 +314,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "친구 정보",
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.friendInfo,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -338,7 +338,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _friendData == null
-          ? const Center(child: Text("친구 정보를 불러올 수 없습니다.", style: TextStyle(fontSize: 16, color: Colors.white)))
+          ? Center(child: Text(AppLocalizations.of(context)!.friendInfoNotFound, style: const TextStyle(fontSize: 16, color: Colors.white)))
           : SingleChildScrollView(
         child: Column(
           children: [
@@ -349,11 +349,11 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
             _buildProfileInfo(),
             const SizedBox(height: 16),
             if (!_isActive)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  "이 계정은 비활성화되었습니다.",
-                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                  AppLocalizations.of(context)!.accountDeactivated,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             if (_isActive) _buildActionButtons(),
@@ -416,7 +416,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            _friendData!["nickname"] ?? "알 수 없음",
+            _friendData!["nickname"] ?? AppLocalizations.of(context)!.unknownUser,
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
@@ -447,9 +447,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatItem("Total", "$totalViews"),
-          _buildStatItem("Today", "$dailyViews"),
-          _buildStatItem("Rank", _rank),
+          _buildStatItem(AppLocalizations.of(context)!.total, "$totalViews"),
+          _buildStatItem(AppLocalizations.of(context)!.today, "$dailyViews"),
+          _buildStatItem(AppLocalizations.of(context)!.rank, _rank),
         ],
       ),
     );
@@ -458,7 +458,13 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
-        Text(
+        title == AppLocalizations.of(context)!.rank && value.startsWith("assets/")
+            ? Image.asset(
+          value,
+          width: 24,
+          height: 24,
+        )
+            : Text(
           value,
           style: const TextStyle(
             fontSize: 18,
@@ -496,9 +502,9 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       ),
       child: Column(
         children: [
-          _infoTile(Icons.store, "홈샵", _friendData!["homeShop"] ?? "없음"),
-          _infoTile(Icons.star, "레이팅", _friendData!["rating"]?.toString() ?? "정보 없음"),
-          _infoTile(Icons.sports_esports, "다트 보드", _friendData!["dartBoard"] ?? "정보 없음"),
+          _infoTile(Icons.store, AppLocalizations.of(context)!.homeShop, _friendData!["homeShop"] ?? AppLocalizations.of(context)!.none),
+          _infoTile(Icons.star, AppLocalizations.of(context)!.rating, _friendData!["rating"]?.toString() ?? AppLocalizations.of(context)!.none),
+          _infoTile(Icons.sports_esports, AppLocalizations.of(context)!.dartBoard, _friendData!["dartBoard"] ?? AppLocalizations.of(context)!.none),
         ],
       ),
     );
@@ -537,20 +543,18 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          _buildActionButton(Icons.chat, "메시지 보내기", const LinearGradient(colors: [Colors.amber, Colors.orange]), _startChat),
+          _buildActionButton(Icons.chat, AppLocalizations.of(context)!.sendMessage, const LinearGradient(colors: [Colors.amber, Colors.orange]), _startChat),
           const SizedBox(height: 12),
           _buildActionButton(
             _isFavorite ? Icons.star : Icons.star_border,
-            "즐겨찾기",
-            _isFavorite
-                ? const LinearGradient(colors: [Colors.amber, Colors.orange])
-                : const LinearGradient(colors: [Colors.grey, Colors.grey]),
+            AppLocalizations.of(context)!.favorites,
+            _isFavorite ? const LinearGradient(colors: [Colors.amber, Colors.orange]) : const LinearGradient(colors: [Colors.grey, Colors.grey]),
             _toggleFavorite,
           ),
           const SizedBox(height: 12),
-          _buildActionButton(Icons.person_remove, "친구 삭제", const LinearGradient(colors: [Colors.redAccent, Colors.red]), _removeFriend),
+          _buildActionButton(Icons.person_remove, AppLocalizations.of(context)!.removeFriend, const LinearGradient(colors: [Colors.redAccent, Colors.red]), _removeFriend),
           const SizedBox(height: 12),
-          _buildActionButton(Icons.block, "차단하기", const LinearGradient(colors: [Colors.grey, Colors.grey]), _blockFriend),
+          _buildActionButton(Icons.block, AppLocalizations.of(context)!.block, const LinearGradient(colors: [Colors.grey, Colors.grey]), _blockFriend),
         ],
       ),
     );

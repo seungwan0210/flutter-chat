@@ -103,7 +103,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'DartsChat'**
+  /// **'Darts Chat'**
   String get appTitle;
 
   /// No description provided for @home.
@@ -169,19 +169,19 @@ abstract class AppLocalizations {
   /// No description provided for @wrongPassword.
   ///
   /// In en, this message translates to:
-  /// **'Password is incorrect.'**
+  /// **'Incorrect password.'**
   String get wrongPassword;
 
   /// No description provided for @invalidEmail.
   ///
   /// In en, this message translates to:
-  /// **'Email format is invalid.'**
+  /// **'Invalid email format.'**
   String get invalidEmail;
 
   /// No description provided for @userDisabled.
   ///
   /// In en, this message translates to:
-  /// **'This account is disabled.'**
+  /// **'This account has been disabled.'**
   String get userDisabled;
 
   /// No description provided for @loginFailed.
@@ -211,7 +211,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmLogout.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to log out?'**
+  /// **'Are you sure you want to logout?'**
   String get confirmLogout;
 
   /// No description provided for @cancel.
@@ -231,6 +231,384 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Logout failed'**
   String get logoutFailed;
+
+  /// No description provided for @error.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get error;
+
+  /// No description provided for @errorLoadingUserData.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading user data'**
+  String get errorLoadingUserData;
+
+  /// No description provided for @errorLoadingBlockedUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading blocked users'**
+  String get errorLoadingBlockedUsers;
+
+  /// No description provided for @errorLoadingUserList.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while loading user list'**
+  String get errorLoadingUserList;
+
+  /// No description provided for @errorLoadingStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while loading stats'**
+  String get errorLoadingStats;
+
+  /// No description provided for @homeShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Home Shop'**
+  String get homeShop;
+
+  /// No description provided for @none.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get none;
+
+  /// No description provided for @rating.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get rating;
+
+  /// No description provided for @messageSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Message Setting'**
+  String get messageSetting;
+
+  /// No description provided for @unknownUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown User'**
+  String get unknownUser;
+
+  /// No description provided for @total.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get total;
+
+  /// No description provided for @today.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get today;
+
+  /// No description provided for @rank.
+  ///
+  /// In en, this message translates to:
+  /// **'Rank'**
+  String get rank;
+
+  /// No description provided for @all.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get all;
+
+  /// No description provided for @dartlive.
+  ///
+  /// In en, this message translates to:
+  /// **'Dartslive'**
+  String get dartlive;
+
+  /// No description provided for @phoenix.
+  ///
+  /// In en, this message translates to:
+  /// **'Phoenix'**
+  String get phoenix;
+
+  /// No description provided for @granboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Granboard'**
+  String get granboard;
+
+  /// No description provided for @homeboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Homeboard'**
+  String get homeboard;
+
+  /// No description provided for @all_allowed.
+  ///
+  /// In en, this message translates to:
+  /// **'All Allowed'**
+  String get all_allowed;
+
+  /// No description provided for @favorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get favorites;
+
+  /// No description provided for @noFriendsInThisStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'No friends in this status currently.'**
+  String get noFriendsInThisStatus;
+
+  /// No description provided for @noFriendsAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'No friends have been added yet.'**
+  String get noFriendsAdded;
+
+  /// No description provided for @goAddFriends.
+  ///
+  /// In en, this message translates to:
+  /// **'Go Add Friends'**
+  String get goAddFriends;
+
+  /// No description provided for @loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get loading;
+
+  /// No description provided for @urlLaunchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to launch URL'**
+  String get urlLaunchFailed;
+
+  /// No description provided for @profileDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile Detail'**
+  String get profileDetail;
+
+  /// No description provided for @accountDeactivated.
+  ///
+  /// In en, this message translates to:
+  /// **'This account has been deactivated.'**
+  String get accountDeactivated;
+
+  /// No description provided for @profileSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile Settings'**
+  String get profileSettings;
+
+  /// No description provided for @todayPlaySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s Play Summary'**
+  String get todayPlaySummary;
+
+  /// No description provided for @sendMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Message'**
+  String get sendMessage;
+
+  /// No description provided for @cannotMessageDeactivated.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot send messages to a deactivated account.'**
+  String get cannotMessageDeactivated;
+
+  /// No description provided for @errorCheckingFriendStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Error checking friend status'**
+  String get errorCheckingFriendStatus;
+
+  /// No description provided for @errorIncreasingProfileViews.
+  ///
+  /// In en, this message translates to:
+  /// **'Error increasing profile views'**
+  String get errorIncreasingProfileViews;
+
+  /// No description provided for @errorLoadingUserInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading user info'**
+  String get errorLoadingUserInfo;
+
+  /// No description provided for @userInfoNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'User info not found.'**
+  String get userInfoNotFound;
+
+  /// No description provided for @userBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'User has been blocked.'**
+  String get userBlocked;
+
+  /// No description provided for @blockReleased.
+  ///
+  /// In en, this message translates to:
+  /// **'Block has been released.'**
+  String get blockReleased;
+
+  /// No description provided for @errorTogglingBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while toggling block'**
+  String get errorTogglingBlock;
+
+  /// No description provided for @blockedUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked user.'**
+  String get blockedUser;
+
+  /// No description provided for @removeFriend.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Friend'**
+  String get removeFriend;
+
+  /// No description provided for @requested.
+  ///
+  /// In en, this message translates to:
+  /// **'Requested'**
+  String get requested;
+
+  /// No description provided for @addFriend.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Friend'**
+  String get addFriend;
+
+  /// No description provided for @cannotAddDeactivated.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot add a deactivated account as a friend.'**
+  String get cannotAddDeactivated;
+
+  /// No description provided for @block.
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get block;
+
+  /// No description provided for @unblock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock'**
+  String get unblock;
+
+  /// No description provided for @friendRequestSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Friend request sent.'**
+  String get friendRequestSent;
+
+  /// No description provided for @errorSendingFriendRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while sending friend request'**
+  String get errorSendingFriendRequest;
+
+  /// No description provided for @friendRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Friend removed.'**
+  String get friendRemoved;
+
+  /// No description provided for @errorRemovingFriend.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while removing friend'**
+  String get errorRemovingFriend;
+
+  /// No description provided for @errorLoadingBlockedStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading blocked status'**
+  String get errorLoadingBlockedStatus;
+
+  /// No description provided for @notRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Not Registered'**
+  String get notRegistered;
+
+  /// No description provided for @friendInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Friend Info'**
+  String get friendInfo;
+
+  /// No description provided for @friendInfoNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot load friend info.'**
+  String get friendInfoNotFound;
+
+  /// No description provided for @errorLoadingFriendInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Error occurred while loading friend info'**
+  String get errorLoadingFriendInfo;
+
+  /// No description provided for @cannotAddDeactivatedToFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot add a deactivated account to favorites.'**
+  String get cannotAddDeactivatedToFavorites;
+
+  /// No description provided for @errorTogglingFavorite.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to toggle favorite'**
+  String get errorTogglingFavorite;
+
+  /// No description provided for @confirmRemoveFriend.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to remove this friend?'**
+  String get confirmRemoveFriend;
+
+  /// No description provided for @blockUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Block User'**
+  String get blockUser;
+
+  /// No description provided for @confirmBlockUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to block this user? Blocking will also remove the friend relationship.'**
+  String get confirmBlockUser;
+
+  /// No description provided for @errorBlockingFriend.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to block friend'**
+  String get errorBlockingFriend;
+
+  /// No description provided for @remove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get remove;
+
+  /// No description provided for @dartBoardLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Dart Board'**
+  String get dartBoardLabel;
+
+  /// No description provided for @dartBoard.
+  ///
+  /// In en, this message translates to:
+  /// **'Dart Board'**
+  String get dartBoard;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

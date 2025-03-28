@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 다국어 지원 추가
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart'; // Logger 추가
+import 'package:dartschat/generated/app_localizations.dart';
 import 'profile_detail_page.dart';
 import 'UserSearchPage.dart';
 import 'admin_page.dart';
@@ -18,25 +20,25 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
-  final Logger _logger = Logger(); // Logger 인스턴스 추가
-  String selectedBoardFilter = "전체";
-  String selectedRatingFilter = "전체";
+  final Logger _logger = Logger();
+  String selectedBoardFilter = "all"; // 지역화 키로 변경
+  String selectedRatingFilter = "all"; // 지역화 키로 변경
   static const int MAX_RATING = 30;
 
   Map<String, dynamic>? currentUserData;
   late Stream<DocumentSnapshot> profileStatsStream;
 
-  List<String> ratingOptions = ["전체"];
+  List<String> ratingOptions = ["all"];
   String _messageSetting = "ALL";
   String _rank = "💀";
-  bool _isDiamond = false;
+  bool _isPro = false; // isDiamond -> isPro로 변경
 
   @override
   void initState() {
     super.initState();
     _listenToCurrentUser();
     profileStatsStream = _getProfileStatsStream();
-    ratingOptions = ["전체", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
+    ratingOptions = ["all", ...List.generate(MAX_RATING, (index) => (index + 1).toString())];
     _logger.i("HomePage initState called");
   }
 
@@ -49,8 +51,8 @@ class _HomePageState extends State<HomePage> {
             setState(() {
               currentUserData = userDoc.data() as Map<String, dynamic>;
               _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
-              _isDiamond = currentUserData!["isDiamond"] ?? false;
-              _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isDiamond);
+              _isPro = currentUserData!["isPro"] ?? false; // isDiamond -> isPro
+              _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isPro);
             });
           }
           _logger.i("Current user data updated for UID: $currentUserId");
@@ -60,7 +62,7 @@ class _HomePageState extends State<HomePage> {
         _logger.e("Error listening to current user data: $e");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("사용자 정보 로드 중 오류: $e")),
+            SnackBar(content: Text("${AppLocalizations.of(context)!.errorLoadingUserData}: $e")),
           );
         }
       },
@@ -72,18 +74,20 @@ class _HomePageState extends State<HomePage> {
     return FirebaseFirestore.instance.collection("users").doc(currentUserId).snapshots();
   }
 
-  String _calculateRank(int totalViews, bool isDiamond) {
-    if (isDiamond) return "💎";
-    if (totalViews >= 20000) return "✨";
-    if (totalViews >= 10000) return "⭐";
-    if (totalViews >= 5000) return "🌟";
-    if (totalViews >= 3000) return "🏆";
-    if (totalViews >= 2500) return "🏅";
-    if (totalViews >= 2200) return "🎖️";
-    if (totalViews >= 1500) return "🥇";
-    if (totalViews >= 500) return "🥈";
-    if (totalViews >= 300) return "🥉";
-    return "💀";
+  String _calculateRank(int totalViews, bool isPro) {
+    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (totalViews >= 20000) return "assets/diamond.png";
+    if (totalViews >= 15000) return "assets/emerald.png";
+    if (totalViews >= 10000) return "assets/platinum_2.png";
+    if (totalViews >= 5000) return "assets/platinum_1.png";
+    if (totalViews >= 3200) return "assets/gold_2.png";
+    if (totalViews >= 2200) return "assets/gold_1.png";
+    if (totalViews >= 1800) return "assets/silver_2.png";
+    if (totalViews >= 1200) return "assets/silver_1.png";
+    if (totalViews >= 800) return "assets/bronze_3.png";
+    if (totalViews >= 500) return "assets/bronze_2.png";
+    if (totalViews >= 300) return "assets/bronze_1.png";
+    return "💀"; // 300 미만은 해골 이모티콘
   }
 
   @override
@@ -96,18 +100,29 @@ class _HomePageState extends State<HomePage> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               _logger.e("Error loading user count: ${snapshot.error}");
-              return const Text("홈 (오류)", style: TextStyle(color: Colors.white));
+              return Text(
+                "${AppLocalizations.of(context)!.home} (${AppLocalizations.of(context)!.error})",
+                style: const TextStyle(color: Colors.white),
+              );
             }
             int userCount = snapshot.hasData
                 ? snapshot.data!.docs
                 .where((doc) {
               Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
-              bool isActive = userData["isActive"] ?? true;
+              dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
+              bool isActive = isActiveRaw is bool
+                  ? isActiveRaw
+                  : isActiveRaw is String
+                  ? isActiveRaw.toLowerCase() == "true"
+                  : true;
               return isActive;
             })
                 .length
                 : 0;
-            return Text("홈 ($userCount)", style: const TextStyle(color: Colors.white));
+            return Text(
+              "${AppLocalizations.of(context)!.home} ($userCount)",
+              style: const TextStyle(color: Colors.white),
+            );
           },
         ),
         backgroundColor: Colors.black,
@@ -156,7 +171,7 @@ class _HomePageState extends State<HomePage> {
                 }
                 if (blockedSnapshot.hasError) {
                   _logger.e("Error loading blocked users: ${blockedSnapshot.error}");
-                  return const Center(child: Text("차단 목록 로드 중 오류", style: TextStyle(color: Colors.redAccent)));
+                  return Center(child: Text(AppLocalizations.of(context)!.errorLoadingBlockedUsers, style: const TextStyle(color: Colors.redAccent)));
                 }
 
                 var blockedIds = blockedSnapshot.data!.map((user) => user["blockedUserId"] as String).toList();
@@ -171,22 +186,27 @@ class _HomePageState extends State<HomePage> {
                       _logger.e("Error loading user list: ${snapshot.error}");
                       return Center(
                         child: Text(
-                          "사용자 목록을 불러오는 중 오류가 발생했습니다.",
+                          AppLocalizations.of(context)!.errorLoadingUserList,
                           style: TextStyle(color: Theme.of(context).colorScheme.error),
                         ),
                       );
                     }
 
                     var users = snapshot.data!.docs.where((user) {
-                      if (user.id == auth.currentUser!.uid) return false; // 현재 사용자 제외
-                      if (blockedIds.contains(user.id)) return false; // 차단된 사용자 제외
+                      if (user.id == auth.currentUser!.uid) return false;
+                      if (blockedIds.contains(user.id)) return false;
                       Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-                      bool isActive = userData["isActive"] ?? true; // 비활성화된 사용자 제외
+                      dynamic isActiveRaw = userData.containsKey("isActive") ? userData["isActive"] : true;
+                      bool isActive = isActiveRaw is bool
+                          ? isActiveRaw
+                          : isActiveRaw is String
+                          ? isActiveRaw.toLowerCase() == "true"
+                          : true;
                       if (!isActive) return false;
-                      String dartBoard = userData["dartBoard"] ?? "없음";
+                      String dartBoard = userData["dartBoard"] ?? "none";
                       int rating = userData["rating"] ?? 0;
-                      return (selectedBoardFilter == "전체" || dartBoard == selectedBoardFilter) &&
-                          (selectedRatingFilter == "전체" || rating.toString() == selectedRatingFilter);
+                      return (selectedBoardFilter == "all" || dartBoard == selectedBoardFilter) &&
+                          (selectedRatingFilter == "all" || rating.toString() == selectedRatingFilter);
                     }).toList();
 
                     _logger.i("Filtered user list length: ${users.length}");
@@ -207,8 +227,8 @@ class _HomePageState extends State<HomePage> {
     }
 
     bool isOnline = currentUserData!["status"] == "online";
-    String nickname = currentUserData!["nickname"] ?? "닉네임 없음";
-    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "전체 허용";
+    String nickname = currentUserData!["nickname"] ?? "unknown_user";
+    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "all_allowed";
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
     String? mainProfileImage = currentUserData!["mainProfileImage"];
 
@@ -245,15 +265,15 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   Text(
-                    "홈샵: ${currentUserData!["homeShop"] ?? "없음"}",
+                    "${AppLocalizations.of(context)!.homeShop}: ${currentUserData!["homeShop"] ?? AppLocalizations.of(context)!.none}",
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                   Text(
-                    "${currentUserData!["dartBoard"] ?? "없음"} | 레이팅: ${currentUserData!["rating"] ?? 0}",
+                    "${currentUserData!["dartBoard"] ?? AppLocalizations.of(context)!.none} | ${AppLocalizations.of(context)!.rating}: ${currentUserData!["rating"] ?? 0}",
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                   Text(
-                    "메시지 설정: $messageSetting",
+                    "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
                     style: TextStyle(
                       fontSize: 14,
                       color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -271,9 +291,9 @@ class _HomePageState extends State<HomePage> {
   Widget _buildUserList(List<QueryDocumentSnapshot> users) {
     return ListView(
       children: [
-        _buildUserSection("온라인 유저", users.where((user) => user["status"] == "online").toList()),
+        _buildUserSection(AppLocalizations.of(context)!.onlineUsers, users.where((user) => user["status"] == "online").toList()),
         const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
-        _buildUserSection("오프라인 유저", users.where((user) => user["status"] == "offline").toList()),
+        _buildUserSection(AppLocalizations.of(context)!.offlineUsers, users.where((user) => user["status"] == "offline").toList()),
       ],
     );
   }
@@ -303,11 +323,11 @@ class _HomePageState extends State<HomePage> {
     String currentUserId = auth.currentUser!.uid;
     bool isOnline = user["status"] == "online";
     Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-    String messageSetting = userData["messageReceiveSetting"] ?? "전체 허용";
+    String messageSetting = userData["messageReceiveSetting"] ?? "all_allowed";
     int rating = userData["rating"] ?? 0;
     int totalViews = userData["totalViews"] ?? 0;
-    bool isDiamond = userData["isDiamond"] ?? false;
-    String rank = _calculateRank(totalViews, isDiamond);
+    bool isPro = userData["isPro"] ?? false; // isDiamond -> isPro
+    String rank = _calculateRank(totalViews, isPro);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
     String? mainProfileImage = userData["mainProfileImage"];
 
@@ -317,7 +337,7 @@ class _HomePageState extends State<HomePage> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
         leading: _buildProfileImage(mainProfileImage, profileImages, isOnline, rank),
         title: Text(
-          userData["nickname"] ?? "알 수 없는 사용자",
+          userData["nickname"] ?? AppLocalizations.of(context)!.unknownUser,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
@@ -328,15 +348,15 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "홈샵: ${userData["homeShop"] ?? "없음"}",
+              "${AppLocalizations.of(context)!.homeShop}: ${userData["homeShop"] ?? AppLocalizations.of(context)!.none}",
               style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
             ),
             Text(
-              "${userData["dartBoard"] ?? "없음"} | 레이팅: $rating",
+              "${userData["dartBoard"] ?? AppLocalizations.of(context)!.none} | ${AppLocalizations.of(context)!.rating}: $rating",
               style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
             ),
             Text(
-              "메시지 설정: $messageSetting",
+              "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -351,7 +371,7 @@ class _HomePageState extends State<HomePage> {
             MaterialPageRoute(
               builder: (context) => ProfileDetailPage(
                 userId: user.id,
-                nickname: userData["nickname"] ?? "알 수 없음",
+                nickname: userData["nickname"] ?? AppLocalizations.of(context)!.unknownUser,
                 profileImages: profileImages,
                 isCurrentUser: user.id == currentUserId,
               ),
@@ -372,7 +392,13 @@ class _HomePageState extends State<HomePage> {
               Expanded(
                 child: _dropdownFilter(
                   selectedBoardFilter,
-                  ["전체", "다트라이브", "피닉스", "그란보드", "홈보드"],
+                  [
+                    "all",
+                    "dartlive",
+                    "phoenix",
+                    "granboard",
+                    "homeboard",
+                  ], // 지역화 키로 변경
                       (newValue) => setState(() => selectedBoardFilter = newValue!),
                 ),
               ),
@@ -395,7 +421,13 @@ class _HomePageState extends State<HomePage> {
   Widget _buildStatItem(String title, String value) {
     return Column(
       children: [
-        Text(
+        title == AppLocalizations.of(context)!.rank && value.startsWith("assets/")
+            ? Image.asset(
+          value,
+          width: 24,
+          height: 24,
+        )
+            : Text(
           value,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
         ),
@@ -416,7 +448,7 @@ class _HomePageState extends State<HomePage> {
           _logger.e("Error loading profile stats: ${snapshot.error}");
           return Center(
             child: Text(
-              "통계 정보를 불러오는 중 오류가 발생했습니다.",
+              AppLocalizations.of(context)!.errorLoadingStats,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
@@ -429,9 +461,9 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem("Total", "${stats["totalViews"] ?? 0}"),
-              _buildStatItem("Today", "${stats["todayViews"] ?? 0}"),
-              _buildStatItem("Rank", _rank),
+              _buildStatItem(AppLocalizations.of(context)!.total, "${stats["totalViews"] ?? 0}"),
+              _buildStatItem(AppLocalizations.of(context)!.today, "${stats["todayViews"] ?? 0}"),
+              _buildStatItem(AppLocalizations.of(context)!.rank, _rank),
             ],
           ),
         );
@@ -488,7 +520,13 @@ class _HomePageState extends State<HomePage> {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.black, width: 1),
             ),
-            child: Text(
+            child: rank.startsWith("assets/")
+                ? Image.asset(
+              rank,
+              width: 16,
+              height: 16,
+            )
+                : Text(
               rank,
               style: const TextStyle(fontSize: 12),
             ),
@@ -503,8 +541,8 @@ class _HomePageState extends State<HomePage> {
       value: selectedValue,
       onChanged: onChanged,
       items: items.isNotEmpty
-          ? items.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList()
-          : [const DropdownMenuItem(value: "전체", child: Text("전체"))],
+          ? items.map((value) => DropdownMenuItem(value: value, child: Text(AppLocalizations.of(context)!.translate(value)))).toList()
+          : [DropdownMenuItem(value: "all", child: Text(AppLocalizations.of(context)!.all))],
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -518,5 +556,25 @@ class _HomePageState extends State<HomePage> {
       dropdownColor: Theme.of(context).cardColor,
       style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
     );
+  }
+}
+
+// AppLocalizations 확장 메서드 추가
+extension AppLocalizationsExtension on AppLocalizations {
+  String translate(String key) {
+    switch (key) {
+      case "all":
+        return all;
+      case "dartlive":
+        return dartlive;
+      case "phoenix":
+        return phoenix;
+      case "granboard":
+        return granboard;
+      case "homeboard":
+        return homeboard;
+      default:
+        return key; // 기본값으로 키 반환
+    }
   }
 }

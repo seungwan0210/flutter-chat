@@ -4,9 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class DiamondManagementTab extends StatelessWidget {
   const DiamondManagementTab({super.key});
 
-  Future<void> _toggleDiamondStatus(String userId, bool currentStatus) async {
+  Future<void> _toggleProStatus(String userId, bool currentStatus) async {
     await FirebaseFirestore.instance.collection("users").doc(userId).update({
-      "isDiamond": !currentStatus,
+      "isPro": !currentStatus, // "isDiamond"를 "isPro"로 변경
     });
   }
 
@@ -29,14 +29,14 @@ class DiamondManagementTab extends StatelessWidget {
             String userId = user.id;
             Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
             String nickname = userData["nickname"] ?? "알 수 없음";
-            bool isDiamond = userData["isDiamond"] ?? false;
+            bool isPro = userData["isPro"] ?? false; // "isDiamond"를 "isPro"로 변경
 
             return ListTile(
               title: Text(nickname, style: const TextStyle(color: Colors.black87)),
-              subtitle: Text("다이아 등급: ${isDiamond ? "예" : "아니오"}", style: const TextStyle(color: Colors.black54)),
+              subtitle: Text("프로 등급: ${isPro ? "예" : "아니오"}", style: const TextStyle(color: Colors.black54)), // "다이아 등급"을 "프로 등급"으로 변경
               trailing: Switch(
-                value: isDiamond,
-                onChanged: (value) => _toggleDiamondStatus(userId, isDiamond),
+                value: isPro,
+                onChanged: (value) => _toggleProStatus(userId, isPro),
                 activeColor: Colors.amber,
               ),
             );
