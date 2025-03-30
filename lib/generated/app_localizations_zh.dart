@@ -611,6 +611,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get addImage => '添加图片';
+
+  @override
+  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1222,4 +1225,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get addImage => '添加圖片';
+
+  @override
+  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
 }

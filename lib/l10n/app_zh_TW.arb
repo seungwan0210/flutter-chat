@@ -200,5 +200,6 @@
   "noImagesUploaded": "尚未上傳任何圖片。",
   "noDate": "無日期資訊",
   "defaultImage": "默認圖片設置",
-  "addImage": "添加圖片"
+  "addImage": "添加圖片",
+  "allMessagesRead": "모든 메시지가 읽혔습니다."
 }

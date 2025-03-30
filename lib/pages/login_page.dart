@@ -68,10 +68,10 @@ class _LoginPageState extends State<LoginPage> {
       await _firestore.collection("users").doc(user.uid).set({
         "uid": user.uid,
         "email": user.email,
-        "nickname": AppLocalizations.of(context)!.newUser, // 다국어 닉네임
+        "nickname": AppLocalizations.of(context)!.newUser,
         "profileImages": [],
         "mainProfileImage": "",
-        "dartBoard": AppLocalizations.of(context)!.dartlive, // 다국어로 변경
+        "dartBoard": AppLocalizations.of(context)!.dartlive,
         "messageSetting": "all",
         "status": "online",
         "createdAt": FieldValue.serverTimestamp(),
@@ -209,6 +209,10 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     Locale currentLocale = Localizations.localeOf(context);
     _logger.i("Building LoginPage with current locale: ${currentLocale.toString()}");
+
+    // 지원 로케일 목록을 로그로 확인
+    _logger.i("Supported locales: ${AppLocalizations.supportedLocales.map((l) => l.toString()).toList()}");
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
@@ -319,19 +323,20 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(width: 8),
                     DropdownButtonHideUnderline(
-                      child: DropdownButton<Locale>(
-                        value: currentLocale,
+                      child: DropdownButton<String>(
+                        value: currentLocale.toString(), // 'ko_KR', 'en_US', 'zh_Hans', 'zh_Hant' 등
                         items: AppLocalizations.supportedLocales.map((locale) {
-                          return DropdownMenuItem<Locale>(
-                            value: locale,
+                          String localeString = locale.toString(); // 'ko_KR', 'zh_Hans' 등으로 고유성 보장
+                          return DropdownMenuItem<String>(
+                            value: localeString,
                             child: Text(
                               {
-                                'ko': '한국어',
-                                'en': 'English',
-                                'ja': '日本語',
-                                'zh': '中文 (简体)',
-                                'zh_TW': '中文 (繁體)',
-                              }[locale.toString()] ?? locale.toString(),
+                                'ko_KR': '한국어',
+                                'en_US': 'English',
+                                'ja_JP': '日本語',
+                                'zh': '中文 (简体)', // zh_Hans 대신 zh로 표시
+                                'zh_TW': '中文 (繁體)', // zh_Hant 대신 zh_TW로 표시
+                              }[localeString] ?? localeString,
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.black54,
@@ -339,13 +344,16 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           );
                         }).toList(),
-                        onChanged: (Locale? newLocale) {
-                          if (newLocale != null && newLocale != currentLocale) {
-                            _logger.i("LoginPage: Dropdown selected: ${newLocale.toString()}, previous: ${currentLocale.toString()}");
+                        onChanged: (String? newLocaleString) {
+                          if (newLocaleString != null && newLocaleString != currentLocale.toString()) {
+                            Locale newLocale = AppLocalizations.supportedLocales.firstWhere(
+                                  (locale) => locale.toString() == newLocaleString,
+                            );
+                            _logger.i("LoginPage: Dropdown selected: $newLocaleString, previous: ${currentLocale.toString()}");
                             widget.onLocaleChange(newLocale);
-                            setState(() {}); // UI 갱신 강제
+                            setState(() {});
                           } else {
-                            _logger.i("No locale change: newLocale is ${newLocale?.toString()} and currentLocale is ${currentLocale.toString()}");
+                            _logger.i("No locale change: newLocaleString is $newLocaleString and currentLocale is ${currentLocale.toString()}");
                           }
                         },
                         dropdownColor: Colors.white,

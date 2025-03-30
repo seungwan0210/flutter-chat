@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
 import 'dart:io';
 
@@ -9,6 +10,14 @@ class FirestoreService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final Logger _logger = Logger();
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  static const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'high_importance_channel',
+    'High Importance Notifications',
+    description: 'This channel is used for important notifications.',
+    importance: Importance.max,
+  );
 
   FirebaseFirestore get firestore => _firestore;
   String? get currentUserId => _auth.currentUser?.uid;
@@ -207,6 +216,123 @@ class FirestoreService {
     }
   }
 
+  Future<void> sendMessage(String receiverId, String content) async {
+    try {
+      String senderId = _auth.currentUser!.uid;
+      String chatId = _generateChatId(senderId, receiverId);
+
+      // 메시지 저장
+      DocumentReference messageRef = _firestore.collection('chats').doc(chatId).collection('messages').doc();
+      await messageRef.set({
+        'content': content,
+        'senderId': senderId,
+        'receiverId': receiverId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      // 채팅방 정보 업데이트
+      DocumentReference chatRef = _firestore.collection('chats').doc(chatId);
+      await chatRef.set({
+        'participants': [senderId, receiverId],
+        'lastMessage': content,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'unreadCount': {senderId: 0, receiverId: FieldValue.increment(1)},
+      }, SetOptions(merge: true));
+
+      // 사용자별 unreadCount 업데이트
+      DocumentSnapshot chatDoc = await chatRef.get();
+      int unreadCount = (chatDoc.data() as Map<String, dynamic>?)?['unreadCount']?[receiverId] ?? 0;
+
+      // FCM 푸시 알림 전송 (클라이언트에서 간단히 처리, 실제로는 서버에서 해야 함)
+      await _sendPushNotification(receiverId, content, unreadCount);
+
+      _logger.i("✅ 메시지 전송 완료: $chatId, unreadCount for $receiverId: $unreadCount");
+    } catch (e) {
+      _logger.e("❌ 메시지 전송 중 오류 발생: $e");
+      throw Exception("메시지 전송 실패: $e");
+    }
+  }
+
+  Future<void> markMessagesAsRead(String chatId) async {
+    try {
+      String userId = _auth.currentUser!.uid;
+      QuerySnapshot unreadMessages = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('isRead', isEqualTo: false)
+          .where('receiverId', isEqualTo: userId)
+          .get();
+
+      for (var doc in unreadMessages.docs) {
+        await doc.reference.update({'isRead': true});
+      }
+
+      // unreadCount 초기화
+      await _firestore.collection('chats').doc(chatId).update({
+        'unreadCount.$userId': 0,
+      });
+
+      // 총 unreadCount 계산 및 배지 업데이트
+      int totalUnread = await _getTotalUnreadCount(userId);
+      await flutterLocalNotificationsPlugin.show(
+        0, // 알림 ID
+        null, // 읽음 처리 시 제목/내용 표시 생략
+        null,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.max,
+            priority: Priority.high,
+            number: totalUnread, // 배지 수 설정
+          ),
+        ),
+      );
+      _logger.i("✅ 메시지 읽음 처리 완료: $chatId");
+    } catch (e) {
+      _logger.e("❌ 메시지 읽음 처리 중 오류 발생: $e");
+      throw Exception("메시지 읽음 처리 실패: $e");
+    }
+  }
+
+  Future<int> _getTotalUnreadCount(String userId) async {
+    try {
+      QuerySnapshot chats = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: userId)
+          .get();
+      int total = 0;
+      for (var chat in chats.docs) {
+        total += (chat['unreadCount']?[userId] ?? 0) as int;
+      }
+      return total;
+    } catch (e) {
+      _logger.e("❌ 총 unreadCount 계산 중 오류 발생: $e");
+      return 0;
+    }
+  }
+
+  // 추가된 public 메서드
+  Future<int> getTotalUnreadCount(String userId) async {
+    return await _getTotalUnreadCount(userId);
+  }
+
+  Future<void> _sendPushNotification(String receiverId, String messageContent, int unreadCount) async {
+    try {
+      _logger.i("Sending push notification to $receiverId: '$messageContent', unreadCount: $unreadCount");
+    } catch (e) {
+      _logger.e("❌ 푸시 알림 전송 중 오류 발생: $e");
+    }
+  }
+
+  String _generateChatId(String userId1, String userId2) {
+    List<String> ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
   Stream<bool> listenToBlockedStatus(String userId) {
     String currentUserId = _auth.currentUser!.uid;
     return _firestore
@@ -253,7 +379,6 @@ class FirestoreService {
       var userData = userDoc.data() as Map<String, dynamic>;
 
       if (blockDoc.exists) {
-        // 차단 해제
         await blockRef.delete();
         await _firestore.runTransaction((transaction) async {
           DocumentSnapshot snapshot = await transaction.get(userRef);
@@ -268,7 +393,6 @@ class FirestoreService {
         });
         _logger.i("✅ 사용자 $userId 차단 해제 완료");
       } else {
-        // 차단 추가
         await blockRef.set({
           "blockedUserId": userId,
           "nickname": nickname,
@@ -344,7 +468,7 @@ class FirestoreService {
       return isActive;
     } catch (e) {
       _logger.e("Error in isUserActive: $e");
-      return true; // 기본값 true 반환
+      return true;
     }
   }
 
@@ -370,27 +494,23 @@ class FirestoreService {
       int todayViews = userData["todayViews"] ?? 0;
       DateTime lastViewDate = userData["lastViewDate"]?.toDate() ?? DateTime(2000);
 
-      // 하루 초기화 체크
       if (todayStart.isAfter(lastViewDate)) {
         todayViews = 0;
       }
 
-      // 중복 조회 체크
       if (viewSnapshot.exists) {
         Timestamp lastViewedAt = viewSnapshot["viewedAt"];
         DateTime lastViewedDate = lastViewedAt.toDate();
         if (lastViewedDate.isAfter(todayStart)) {
-          return; // 오늘 이미 조회했으면 증가하지 않음
+          return;
         }
       }
 
-      // 조회 기록 업데이트
       transaction.set(viewRef, {
         "viewedAt": FieldValue.serverTimestamp(),
         "viewerId": currentUserId,
       });
 
-      // 통계 증가
       transaction.update(userRef, {
         "totalViews": totalViews + 1,
         "todayViews": todayViews + 1,

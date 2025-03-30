@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // flutter_app_badger 대신 추가
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,18 +14,60 @@ import 'package:dartschat/pages/main_page.dart';
 import 'firebase_options.dart';
 import 'services/firestore_service.dart';
 
+final Logger _logger = Logger();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+// 알림 채널 설정
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'high_importance_channel', // ID (AndroidManifest.xml과 일치)
+  'High Importance Notifications', // 이름
+  description: 'This channel is used for important notifications.',
+  importance: Importance.max,
+);
+
+// 백그라운드 메시지 핸들러
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  int unreadCount = int.tryParse(message.data['unreadCount'] ?? '0') ?? 0;
+  await flutterLocalNotificationsPlugin.show(
+    0, // 알림 ID (고유해야 함, 여기서는 단순히 0 사용)
+    null, // 백그라운드에서는 제목/내용 표시 생략
+    null,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel.id,
+        channel.name,
+        channelDescription: channel.description,
+        importance: Importance.max,
+        priority: Priority.high,
+        number: unreadCount, // 배지 수 설정
+      ),
+    ),
+  );
+  _logger.i("Background message received: $unreadCount unread messages");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    await setupPushNotifications();
   } catch (e) {
-    Logger().e("Firebase 초기화 실패: $e");
+    _logger.e("Firebase 초기화 실패: $e");
     return;
   }
   await initializeDateFormatting('ko_KR', null);
-  Logger().i("✅ intl 초기화 완료: ko_KR");
+  _logger.i("✅ intl 초기화 완료: ko_KR");
+
+  // flutter_local_notifications 초기화
+  const AndroidInitializationSettings initializationSettingsAndroid =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
   FirestoreService firestoreService = FirestoreService();
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -32,16 +76,67 @@ void main() async {
   if (!hasMigrated) {
     try {
       await firestoreService.migrateProfileImagesToNewFormat();
-      await prefs.setBool('hasMigratedProfileImagesToNewFormat', true); // 오류 수정
-      Logger().i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
+      await prefs.setBool('hasMigratedProfileImagesToNewFormat', true);
+      _logger.i("✅ Firestore 데이터 마이그레이션 완료 (새 형식)");
     } catch (e) {
-      Logger().e("Firestore 데이터 마이그레이션 실패: $e");
+      _logger.e("Firestore 데이터 마이그레이션 실패: $e");
     }
   } else {
-    Logger().i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
+    _logger.i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
   }
 
   runApp(const DartChatApp());
+}
+
+// FCM 설정 함수
+Future<void> setupPushNotifications() async {
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+  // 알림 권한 요청
+  NotificationSettings settings = await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    _logger.i("Push notification permission granted");
+  } else {
+    _logger.w("Push notification permission denied");
+  }
+
+  // 백그라운드 메시지 핸들러 설정
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // 포그라운드 메시지 처리
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+    int unreadCount = int.tryParse(message.data['unreadCount'] ?? '0') ?? 0;
+    await flutterLocalNotificationsPlugin.show(
+      0, // 알림 ID
+      message.notification?.title, // FCM에서 받은 제목
+      message.notification?.body, // FCM에서 받은 내용
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          number: unreadCount, // 배지 수 설정
+        ),
+      ),
+    );
+    _logger.i("Foreground message received: $unreadCount unread messages");
+  });
+
+  // 앱이 종료된 상태에서 알림 클릭 시 처리
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    _logger.i("App opened from notification: ${message.data}");
+    // TODO: 채팅 페이지로 이동 로직 추가 가능
+  });
+
+  // FCM 토큰 로깅
+  String? token = await messaging.getToken();
+  _logger.i("FCM Token: $token");
 }
 
 class DartChatApp extends StatefulWidget {
@@ -241,10 +336,10 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
         await docRef.set({
           "uid": user.uid,
           "email": user.email,
-          "nickname": "새 유저",
+          "nickname": AppLocalizations.of(context)!.newUser,
           "profileImages": [],
           "mainProfileImage": "",
-          "dartBoard": "다트라이브",
+          "dartBoard": AppLocalizations.of(context)!.dartlive,
           "messageSetting": "all",
           "status": "online",
           "createdAt": FieldValue.serverTimestamp(),
@@ -263,7 +358,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
       _logger.e("❌ Firestore 사용자 문서 확인 중 오류 발생: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("사용자 데이터 확인 중 오류 발생: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.error}: $e")),
         );
       }
     }
@@ -329,7 +424,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    "${AppLocalizations.of(context)!.appTitle} 로딩 중...",
+                    "${AppLocalizations.of(context)!.appTitle} ${AppLocalizations.of(context)!.loading}...",
                     style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
                   ),
                 ],
@@ -358,7 +453,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
                       const CircularProgressIndicator(),
                       const SizedBox(height: 16),
                       Text(
-                        "${AppLocalizations.of(context)!.appTitle} 로딩 중...",
+                        "${AppLocalizations.of(context)!.appTitle} ${AppLocalizations.of(context)!.loading}...",
                         style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
                       ),
                     ],
@@ -371,7 +466,7 @@ class _AuthCheckState extends State<AuthCheck> with WidgetsBindingObserver {
               _logger.e("FutureBuilder error: ${snapshot.error}");
               return Scaffold(
                 body: Center(
-                  child: Text("오류 발생: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+                  child: Text("${AppLocalizations.of(context)!.error}: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
                 ),
               );
             }

@@ -1311,6 +1311,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add Image'**
   String get addImage;
+
+  /// No description provided for @allMessagesRead.
+  ///
+  /// In en, this message translates to:
+  /// **'모든 메시지가 읽혔습니다.'**
+  String get allMessagesRead;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

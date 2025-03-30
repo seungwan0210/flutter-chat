@@ -202,5 +202,6 @@
   "noImagesUploaded": "아직 업로드된 이미지가 없습니다.",
   "noDate": "날짜 정보 없음",
   "defaultImage": "기본 이미지 설정",
-  "addImage": "이미지 추가"
+  "addImage": "이미지 추가",
+  "allMessagesRead": "모든 메시지가 읽혔습니다."
 }

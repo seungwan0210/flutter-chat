@@ -611,4 +611,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get addImage => '画像追加';
+
+  @override
+  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
 }

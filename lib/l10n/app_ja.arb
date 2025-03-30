@@ -200,5 +200,6 @@
   "noImagesUploaded": "まだアップロードされた画像がありません。",
   "noDate": "日付情報なし",
   "defaultImage": "デフォルト画像設定",
-  "addImage": "画像追加"
+  "addImage": "画像追加",
+  "allMessagesRead": "모든 메시지가 읽혔습니다."
 }

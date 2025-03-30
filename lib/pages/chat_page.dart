@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
+import 'package:dartschat/generated/app_localizations.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/profile_detail_page.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
@@ -10,18 +10,19 @@ import 'package:dartschat/pages/FullScreenImagePage.dart';
 class ChatPage extends StatefulWidget {
   final String chatRoomId;
   final String chatPartnerName;
-  final String chatPartnerImage; // 대표 이미지 (mainProfileImage)
+  final String chatPartnerImage;
   final String receiverId;
   final String receiverName;
-  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+  final void Function(Locale) onLocaleChange;
 
-  ChatPage({
+  const ChatPage({
     required this.chatRoomId,
     required this.chatPartnerName,
     required this.chatPartnerImage,
     required this.receiverId,
     required this.receiverName,
     required this.onLocaleChange,
+    super.key,
   });
 
   @override
@@ -34,68 +35,60 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final FirestoreService _firestoreService = FirestoreService();
+
   bool _isSearching = false;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _markMessagesAsRead(); // 페이지 로드 시 읽음 처리
+  }
 
   void _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
-    String senderId = currentUser!.uid;
-    String receiverId = widget.receiverId;
     String messageText = _messageController.text.trim();
-    Timestamp now = Timestamp.now();
 
     try {
-      DocumentSnapshot receiverSnapshot = await FirebaseFirestore.instance.collection('users').doc(receiverId).get();
-
-      if (!receiverSnapshot.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.userInfoNotFound)),
-        );
-        return;
-      }
-
-      var receiverData = receiverSnapshot.data() as Map<String, dynamic>? ?? {};
-      String messageSetting = receiverData.containsKey("messageReceiveSetting")
-          ? receiverData["messageReceiveSetting"]
-          : AppLocalizations.of(context)!.all_allowed;
-      Map<String, dynamic>? friends = receiverData.containsKey("friends")
-          ? receiverData["friends"] as Map<String, dynamic>
-          : {};
-
-      if (messageSetting == AppLocalizations.of(context)!.messageBlocked) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.cannotSendMessage)),
-        );
-        return;
-      } else if (messageSetting == AppLocalizations.of(context)!.friendsOnly && !friends.containsKey(senderId)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.friendsOnlyMessage)),
-        );
-        return;
-      }
-
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatRoomId)
-          .collection('messages')
-          .add({
-        'text': messageText,
-        'senderId': senderId,
-        'receiverId': receiverId,
-        'timestamp': now,
-      });
-
-      await FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId).update({
-        'lastMessage': messageText,
-        'timestamp': now,
-      });
-
+      await _firestoreService.sendMessage(widget.receiverId, messageText);
       _messageController.clear();
       _scrollToBottom();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("${AppLocalizations.of(context)!.errorSendingMessage}: $e")),
+        SnackBar(
+          content: Text(
+            "${AppLocalizations.of(context)!.errorSendingMessage}: $e",
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  void _markMessagesAsRead() async {
+    try {
+      await _firestoreService.markMessagesAsRead(widget.chatRoomId);
+      // 읽음 처리 후 배지 업데이트 확인 (선택적 피드백)
+      int unreadCount = await _firestoreService.getTotalUnreadCount(currentUser!.uid); // _getTotalUnreadCount -> getTotalUnreadCount
+      if (unreadCount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.allMessagesRead),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "${AppLocalizations.of(context)!.errorLoadingMessages}: $e",
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
   }
@@ -153,9 +146,9 @@ class _ChatPageState extends State<ChatPage> {
                     builder: (context) => ProfileDetailPage(
                       userId: widget.receiverId,
                       nickname: widget.chatPartnerName,
-                      profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
+                      profileImages: [],
                       isCurrentUser: false,
-                      onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+                      onLocaleChange: widget.onLocaleChange,
                     ),
                   ),
                 );
@@ -227,11 +220,10 @@ class _ChatPageState extends State<ChatPage> {
                   _scrollToBottom();
                 });
 
-                // 검색어로 메시지 필터링
                 if (_searchQuery.isNotEmpty) {
                   messages = messages.where((message) {
                     var messageData = message.data() as Map<String, dynamic>;
-                    String text = messageData['text']?.toLowerCase() ?? "";
+                    String text = messageData['content']?.toLowerCase() ?? "";
                     return text.contains(_searchQuery.toLowerCase());
                   }).toList();
                 }
@@ -268,8 +260,8 @@ class _ChatPageState extends State<ChatPage> {
                             ),
                           ),
                         _buildMessageBubble(
-                          (message.data() != null && (message.data() as Map<String, dynamic>).containsKey('text'))
-                              ? message['text']
+                          (message.data() != null && (message.data() as Map<String, dynamic>).containsKey('content'))
+                              ? message['content']
                               : AppLocalizations.of(context)!.noMessage,
                           isMe,
                           timeFormatted,
@@ -287,7 +279,6 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  /// 채팅 메시지 버블 UI (이미지 스타일 반영)
   Widget _buildMessageBubble(String message, bool isMe, String time) {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -308,9 +299,9 @@ class _ChatPageState extends State<ChatPage> {
                         builder: (context) => ProfileDetailPage(
                           userId: widget.receiverId,
                           nickname: widget.chatPartnerName,
-                          profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
+                          profileImages: [],
                           isCurrentUser: false,
-                          onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+                          onLocaleChange: widget.onLocaleChange,
                         ),
                       ),
                     );
@@ -361,7 +352,7 @@ class _ChatPageState extends State<ChatPage> {
                   ],
                   Container(
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.6, // 메시지 최대 너비 설정
+                      maxWidth: MediaQuery.of(context).size.width * 0.6,
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                     margin: const EdgeInsets.symmetric(vertical: 4),
@@ -403,7 +394,6 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  /// 메시지 입력창 UI
   Widget _buildMessageInputField() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -438,17 +428,18 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  /// 날짜를 "2025년 3월 8일 토요일" 형식으로 변환
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "";
     DateTime date = timestamp.toDate();
     return DateFormat("yyyy년 M월 d일 EEEE", "ko_KR").format(date);
   }
 
-  /// 시간을 "오전/오후 HH:mm" 형식으로 변환
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return "";
     DateTime date = timestamp.toDate();
-    return DateFormat("a h:mm", "ko_KR").format(date).replaceAll("AM", AppLocalizations.of(context)!.am).replaceAll("PM", AppLocalizations.of(context)!.pm);
+    return DateFormat("a h:mm", "ko_KR")
+        .format(date)
+        .replaceAll("AM", AppLocalizations.of(context)!.am)
+        .replaceAll("PM", AppLocalizations.of(context)!.pm);
   }
 }

@@ -200,5 +200,6 @@
   "noImagesUploaded": "No images have been uploaded yet.",
   "noDate": "No date available",
   "defaultImage": "Set Default Image",
-  "addImage": "Add Image"
+  "addImage": "Add Image",
+  "allMessagesRead": "모든 메시지가 읽혔습니다."
 }

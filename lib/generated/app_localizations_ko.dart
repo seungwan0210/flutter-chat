@@ -611,4 +611,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get addImage => '이미지 추가';
+
+  @override
+  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
 }
