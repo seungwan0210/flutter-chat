@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import 'profile_detail_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class FriendSearchPage extends StatefulWidget {
-  const FriendSearchPage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const FriendSearchPage({super.key, required this.onLocaleChange});
 
   @override
   _FriendSearchPageState createState() => _FriendSearchPageState();
@@ -70,9 +73,9 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "친구 검색",
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.friendSearch, // 다국어 키 사용
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -97,7 +100,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: "닉네임 검색",
+                  hintText: AppLocalizations.of(context)!.friendSearch, // 다국어 키 사용
                   hintStyle: const TextStyle(color: Colors.white70),
                   prefixIcon: const Icon(Icons.search, color: Colors.white),
                   border: OutlineInputBorder(
@@ -117,7 +120,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             ),
             Expanded(
               child: _searchResults.isEmpty
-                  ? const Center(child: Text("검색 결과가 없습니다.", style: TextStyle(color: Colors.white70)))
+                  ? Center(child: Text(AppLocalizations.of(context)!.noSearchResults, style: const TextStyle(color: Colors.white70))) // 다국어 키 사용
                   : ListView.builder(
                 itemCount: _searchResults.length,
                 itemBuilder: (context, index) {
@@ -127,7 +130,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                   return ListTile(
                     leading: _buildProfileImage(mainProfileImage, profileImages),
                     title: Text(
-                      user["nickname"] ?? "알 수 없음",
+                      user["nickname"] ?? AppLocalizations.of(context)!.unknownUser, // 다국어 키 사용
                       style: const TextStyle(color: Colors.white),
                     ),
                     onTap: () {
@@ -137,9 +140,10 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                         MaterialPageRoute(
                           builder: (context) => ProfileDetailPage(
                             userId: user["userId"] ?? "",
-                            nickname: user["nickname"] ?? "알 수 없음",
+                            nickname: user["nickname"] ?? AppLocalizations.of(context)!.unknownUser, // 다국어 키 사용
                             profileImages: profileImages,
                             isCurrentUser: false,
+                            onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
                           ),
                         ),
                       );

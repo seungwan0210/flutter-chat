@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import 'package:url_launcher/url_launcher.dart';
 import 'play_summary_page.dart';
 
 class MorePage extends StatelessWidget {
-  const MorePage({Key? key}) : super(key: key);
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const MorePage({Key? key, required this.onLocaleChange}) : super(key: key);
 
   void _showUpdateDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('업데이트 예정', style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color)),
-        content: Text('추후 업데이트 예정입니다.', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+        title: Text(AppLocalizations.of(context)!.updateScheduled, style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color)),
+        content: Text(AppLocalizations.of(context)!.comingSoon, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('확인', style: TextStyle(color: Theme.of(context).primaryColor)),
+            child: Text(AppLocalizations.of(context)!.confirm, style: TextStyle(color: Theme.of(context).primaryColor)),
           ),
         ],
       ),
@@ -28,12 +31,10 @@ class MorePage extends StatelessWidget {
         uri,
         mode: LaunchMode.platformDefault,
       );
-      if (!launched) {
-        throw 'Could not launch $url';
-      }
+      if (!launched) throw 'Could not launch $url';
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('URL 열기 실패: $e')),
+        SnackBar(content: Text('${AppLocalizations.of(context)!.urlLaunchFailed}: $e')),
       );
     }
   }
@@ -42,28 +43,34 @@ class MorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('더보기', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor)),
+        title: Text(
+          AppLocalizations.of(context)!.more,
+          style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor),
+        ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
-      body: SingleChildScrollView( // 스크롤 가능성 추가
+      body: SingleChildScrollView(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: GridView.builder(
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(), // GridView 자체는 스크롤 방지, 외부 SingleChildScrollView로 대체
+                physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: MediaQuery.of(context).size.width / 3 - 16, // 3열 기준, 간격 고려
-                  crossAxisSpacing: 8, // 간격 줄임
-                  mainAxisSpacing: 8, // 간격 줄임
-                  childAspectRatio: 1, // 정사각형 비율 유지
+                  maxCrossAxisExtent: MediaQuery.of(context).size.width / 3 - 16,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
                 ),
-                itemCount: 6, // 총 6개 아이콘
+                itemCount: 6,
                 itemBuilder: (context, index) {
                   final actions = [
-                        () => Navigator.push(context, MaterialPageRoute(builder: (context) => PlaySummaryPage())),
+                        () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => PlaySummaryPage(onLocaleChange: onLocaleChange)), // onLocaleChange 전달
+                    ),
                         () => _showUpdateDialog(context),
                         () => _showUpdateDialog(context),
                         () => _showUpdateDialog(context),
@@ -78,12 +85,12 @@ class MorePage extends StatelessWidget {
                     Icons.update,
                     Icons.update,
                   ][index], [
-                    '오늘의 플레이',
-                    '토너먼트 정보',
-                    '업데이트 예정',
-                    '업데이트 예정',
-                    '업데이트 예정',
-                    '업데이트 예정',
+                    AppLocalizations.of(context)!.todayPlaySummary,
+                    AppLocalizations.of(context)!.tournamentInfo,
+                    AppLocalizations.of(context)!.updateScheduled,
+                    AppLocalizations.of(context)!.updateScheduled,
+                    AppLocalizations.of(context)!.updateScheduled,
+                    AppLocalizations.of(context)!.updateScheduled,
                   ][index], actions[index]);
                 },
               ),
@@ -92,7 +99,7 @@ class MorePage extends StatelessWidget {
             _buildImageBanner(context, 'assets/bulls_fighter.webp', 'https://m.dartskorea.com/'),
             _buildImageBanner(context, 'assets/dartslive.webp', 'https://www.dartslive.com/kr/'),
             _buildImageBanner(context, 'assets/phoenix.webp', 'https://www.phoenixdarts.com/kr'),
-            const SizedBox(height: 40), // 하단 여백 확보
+            const SizedBox(height: 40),
           ],
         ),
       ),

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
+import 'package:intl/intl.dart' as intl;
 import 'play_summary_detail_page.dart';
 
 class PlaySummaryHistoryPage extends StatefulWidget {
   final DateTime selectedDate;
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
 
-  const PlaySummaryHistoryPage({super.key, required this.selectedDate});
+  const PlaySummaryHistoryPage({super.key, required this.selectedDate, required this.onLocaleChange});
 
   @override
   State<PlaySummaryHistoryPage> createState() => _PlaySummaryHistoryPageState();
@@ -16,6 +18,7 @@ class PlaySummaryHistoryPage extends StatefulWidget {
 class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Map<String, dynamic>? _summary;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -25,26 +28,36 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
 
   /// Firestore에서 선택된 날짜의 플레이 요약 로드
   Future<void> _loadSummary() async {
-    String userId = _auth.currentUser!.uid;
-    String date = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
-    DocumentSnapshot snapshot = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(userId)
-        .collection("daily_play_summary")
-        .doc(date)
-        .get();
+    setState(() => _isLoading = true);
+    try {
+      String userId = _auth.currentUser!.uid;
+      String date = intl.DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+      DocumentSnapshot snapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userId)
+          .collection("daily_play_summary")
+          .doc(date)
+          .get();
 
-    if (snapshot.exists) {
-      setState(() {
-        _summary = snapshot.data() as Map<String, dynamic>;
-      });
+      if (snapshot.exists) {
+        setState(() {
+          _summary = snapshot.data() as Map<String, dynamic>;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${AppLocalizations.of(context)!.errorLoadingStats}: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   /// Firestore에서 선택된 날짜의 플레이 요약 삭제
   Future<void> _deleteSummary() async {
+    setState(() => _isLoading = true);
     String userId = _auth.currentUser!.uid;
-    String date = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+    String date = intl.DateFormat('yyyy-MM-dd').format(widget.selectedDate);
     try {
       await FirebaseFirestore.instance
           .collection("users")
@@ -54,13 +67,15 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
           .delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("플레이 요약이 삭제되었습니다.")),
+        SnackBar(content: Text(AppLocalizations.of(context)!.playSummaryDeleted)),
       );
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("삭제 중 오류가 발생했습니다: $e")),
+        SnackBar(content: Text("${AppLocalizations.of(context)!.deleteFailed}: $e")),
       );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -69,7 +84,7 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "${DateFormat('yyyy년 M월 d일').format(widget.selectedDate)} 요약",
+          "${getFormattedDate(context, widget.selectedDate)} ${AppLocalizations.of(context)!.summary}",
           style: TextStyle(
             color: Theme.of(context).appBarTheme.foregroundColor,
             fontSize: 20,
@@ -83,15 +98,17 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-          child: _summary == null
+          child: _isLoading
               ? const Center(child: CircularProgressIndicator())
+              : _summary == null
+              ? Center(child: Text(AppLocalizations.of(context)!.noData))
               : SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "플레이 요약",
+                  AppLocalizations.of(context)!.todayPlaySummary,
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -99,33 +116,36 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildSummaryItem("상태", _summary!['emoji'] ?? "😊"),
+                _buildSummaryItem(AppLocalizations.of(context)!.status, _summary!['emoji'] ?? "😊"),
                 const Divider(height: 20, thickness: 1, color: Colors.grey),
-                _buildSummaryItem("플레이한 보드", _summary!['board'] ?? "없음"),
+                _buildSummaryItem(AppLocalizations.of(context)!.playedBoard, _summary!['board'] ?? AppLocalizations.of(context)!.none),
                 const Divider(height: 20, thickness: 1, color: Colors.grey),
-                _buildSummaryItem("경기 수", _summary!['games_played']?.toString() ?? "없음"),
+                _buildSummaryItem(AppLocalizations.of(context)!.gamesPlayed, _summary!['games_played']?.toString() ?? AppLocalizations.of(context)!.none),
                 const Divider(height: 20, thickness: 1, color: Colors.grey),
-                _buildSummaryItem("가장 잘된 점", _summary!['best_performance'] ?? "없음"),
+                _buildSummaryItem(AppLocalizations.of(context)!.bestPerformance, _summary!['best_performance'] ?? AppLocalizations.of(context)!.none),
                 const Divider(height: 20, thickness: 1, color: Colors.grey),
-                _buildSummaryItem("개선할 점", _summary!['improvements'] ?? "없음"),
+                _buildSummaryItem(AppLocalizations.of(context)!.improvement, _summary!['improvements'] ?? AppLocalizations.of(context)!.none),
                 const Divider(height: 20, thickness: 1, color: Colors.grey),
-                _buildSummaryItem("한 줄 메모", _summary!['memo'] ?? "없음"),
+                _buildSummaryItem(AppLocalizations.of(context)!.memo, _summary!['memo'] ?? AppLocalizations.of(context)!.none),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildButton("수정", () {
+                    _buildButton(AppLocalizations.of(context)!.edit, () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PlaySummaryDetailPage(selectedDate: widget.selectedDate),
+                          builder: (context) => PlaySummaryDetailPage(
+                            selectedDate: widget.selectedDate,
+                            onLocaleChange: widget.onLocaleChange,
+                          ),
                         ),
                       ).then((_) {
                         Navigator.pop(context); // 수정 후 이전 페이지로 돌아감
                       });
                     }),
                     const SizedBox(width: 12),
-                    _buildButton("삭제", _deleteSummary, color: Theme.of(context).colorScheme.error),
+                    _buildButton(AppLocalizations.of(context)!.delete, _deleteSummary, color: Theme.of(context).colorScheme.error),
                   ],
                 ),
               ],
@@ -136,7 +156,6 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
     );
   }
 
-  /// 요약 정보 항목
   Widget _buildSummaryItem(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -167,7 +186,7 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
   Widget _buildButton(String text, VoidCallback onPressed, {Color? color}) {
     return Expanded(
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: _isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color ?? Theme.of(context).primaryColor,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -185,5 +204,10 @@ class _PlaySummaryHistoryPageState extends State<PlaySummaryHistoryPage> {
         ),
       ),
     );
+  }
+
+  String getFormattedDate(BuildContext context, DateTime date) {
+    var locale = Localizations.localeOf(context).toString();
+    return intl.DateFormat.yMMMMd(locale).format(date); // 로케일에 맞는 날짜 형식
   }
 }

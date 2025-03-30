@@ -7,7 +7,7 @@ import 'main_page.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
-  final void Function(Locale) onLocaleChange; // 필수로 변경
+  final void Function(Locale) onLocaleChange;
 
   const LoginPage({super.key, required this.onLocaleChange});
 
@@ -68,10 +68,10 @@ class _LoginPageState extends State<LoginPage> {
       await _firestore.collection("users").doc(user.uid).set({
         "uid": user.uid,
         "email": user.email,
-        "nickname": "새 유저",
+        "nickname": AppLocalizations.of(context)!.newUser, // 다국어 닉네임
         "profileImages": [],
         "mainProfileImage": "",
-        "dartBoard": "다트라이브",
+        "dartBoard": AppLocalizations.of(context)!.dartlive, // 다국어로 변경
         "messageSetting": "all",
         "status": "online",
         "createdAt": FieldValue.serverTimestamp(),
@@ -173,7 +173,12 @@ class _LoginPageState extends State<LoginPage> {
         _logger.i("Navigating to MainPage");
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 3)),
+          MaterialPageRoute(
+            builder: (context) => MainPage(
+              initialIndex: 3,
+              onLocaleChange: widget.onLocaleChange,
+            ),
+          ),
         );
       }
     } on FirebaseAuthException catch (authError) {
@@ -205,7 +210,7 @@ class _LoginPageState extends State<LoginPage> {
     Locale currentLocale = Localizations.localeOf(context);
     _logger.i("Building LoginPage with current locale: ${currentLocale.toString()}");
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         child: Center(
           child: Padding(
@@ -239,7 +244,7 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.email, color: Colors.blueAccent),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Theme.of(context).cardColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -251,16 +256,31 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Theme.of(context).cardColor,
                   ),
                 ),
                 const SizedBox(height: 24),
                 _isLoading
-                    ? const CircularProgressIndicator()
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        "${AppLocalizations.of(context)!.appTitle} ${AppLocalizations.of(context)!.loading}...",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
                     : ElevatedButton(
                   onPressed: _isLoginEnabled ? _login : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isLoginEnabled ? Colors.blueAccent : Colors.grey,
+                    backgroundColor: _isLoginEnabled ? Theme.of(context).primaryColor : Colors.grey,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -276,7 +296,11 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SignUpPage()),
+                      MaterialPageRoute(
+                        builder: (context) => SignUpPage(
+                          onLocaleChange: widget.onLocaleChange,
+                        ),
+                      ),
                     );
                   },
                   child: Text(
@@ -285,32 +309,57 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                DropdownButton<Locale>(
-                  value: AppLocalizations.supportedLocales.firstWhere(
-                        (locale) =>
-                    locale.languageCode == currentLocale.languageCode &&
-                        (locale.countryCode == currentLocale.countryCode ||
-                            (locale.countryCode == null && currentLocale.countryCode == '')),
-                    orElse: () => AppLocalizations.supportedLocales.first,
-                  ),
-                  items: AppLocalizations.supportedLocales.map((locale) {
-                    return DropdownMenuItem<Locale>(
-                      value: locale,
-                      child: Text({
-                        'en': 'English',
-                        'ko': '한국어',
-                        'ja': '日本語',
-                        'zh': '中文 (简体)',
-                        'zh_TW': '中文 (繁體)',
-                      }[locale.toString()] ?? locale.toString()),
-                    );
-                  }).toList(),
-                  onChanged: (Locale? newLocale) {
-                    if (newLocale != null) {
-                      _logger.i("Dropdown selected: ${newLocale.toString()}");
-                      widget.onLocaleChange(newLocale);
-                    }
-                  },
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.language,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<Locale>(
+                        value: currentLocale,
+                        items: AppLocalizations.supportedLocales.map((locale) {
+                          return DropdownMenuItem<Locale>(
+                            value: locale,
+                            child: Text(
+                              {
+                                'ko': '한국어',
+                                'en': 'English',
+                                'ja': '日本語',
+                                'zh': '中文 (简体)',
+                                'zh_TW': '中文 (繁體)',
+                              }[locale.toString()] ?? locale.toString(),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (Locale? newLocale) {
+                          if (newLocale != null && newLocale != currentLocale) {
+                            _logger.i("LoginPage: Dropdown selected: ${newLocale.toString()}, previous: ${currentLocale.toString()}");
+                            widget.onLocaleChange(newLocale);
+                            setState(() {}); // UI 갱신 강제
+                          } else {
+                            _logger.i("No locale change: newLocale is ${newLocale?.toString()} and currentLocale is ${currentLocale.toString()}");
+                          }
+                        },
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        elevation: 2,
+                        style: const TextStyle(color: Colors.black54),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

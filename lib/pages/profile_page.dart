@@ -12,11 +12,14 @@ import 'package:dartschat/pages/settings/LogoutDialog.dart';
 import 'package:dartschat/pages/settings/nickname_edit_page.dart';
 import 'package:dartschat/pages/settings/homeshop_page.dart';
 import 'package:dartschat/pages/settings/profile_image_page.dart';
-import 'package:dartschat/pages/settings/Profile_settings_Page.dart'; // ProfileSettingsPage 임포트 추가
+import 'package:dartschat/pages/settings/Profile_settings_Page.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:dartschat/generated/app_localizations.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  final void Function(Locale) onLocaleChange;
+
+  const ProfilePage({Key? key, required this.onLocaleChange}) : super(key: key);
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
@@ -28,15 +31,14 @@ class _ProfilePageState extends State<ProfilePage> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _picker = ImagePicker();
 
-  String _nickname = "닉네임 없음";
-  String _homeShop = "설정 안됨";
+  String _nickname = "";
+  String _homeShop = "";
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
-  String _dartBoard = "다트라이브";
+  String _dartBoard = "";
   int _rating = 1;
-  String _messageSetting = "전체 허용";
+  String _messageSetting = "";
 
-  /// URL 유효성 검사
   bool _isValidImageUrl(String? url) {
     if (url == null || url.isEmpty) return false;
     return _firestoreService.sanitizeProfileImage(url).isNotEmpty;
@@ -46,7 +48,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("프로필", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor)),
+        title: Text(
+          AppLocalizations.of(context)!.profile,
+          style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).appBarTheme.foregroundColor),
+        ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 2,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
@@ -56,7 +61,9 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ProfileSettingsPage()),
+                MaterialPageRoute(
+                  builder: (context) => ProfileSettingsPage(onLocaleChange: widget.onLocaleChange),
+                ),
               );
             },
           ),
@@ -73,7 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    "Darts Circle 로딩 중...",
+                    AppLocalizations.of(context)!.loadingDartsCircle,
                     style: TextStyle(
                       fontSize: 16,
                       color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -87,20 +94,19 @@ class _ProfilePageState extends State<ProfilePage> {
           if (snapshot.hasError || !snapshot.hasData) {
             return Center(
               child: Text(
-                "프로필 정보를 불러오는 중 오류가 발생했습니다.",
+                AppLocalizations.of(context)!.errorLoadingProfile,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             );
           }
 
           var userData = snapshot.data!;
-          _nickname = userData["nickname"] ?? "닉네임 없음";
-          _homeShop = userData["homeShop"] ?? "설정 안됨";
-          _dartBoard = userData["dartBoard"] ?? "다트라이브";
+          _nickname = userData["nickname"] ?? AppLocalizations.of(context)!.nickname;
+          _homeShop = userData["homeShop"] ?? AppLocalizations.of(context)!.none;
+          _dartBoard = userData["dartBoard"] ?? AppLocalizations.of(context)!.dartlive;
           _rating = userData["rating"] ?? 1;
-          _messageSetting = userData["messageSetting"] ?? "전체 허용";
+          _messageSetting = userData["messageSetting"] ?? AppLocalizations.of(context)!.all_allowed;
           _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
-          // StreamBuilder에서 최신 mainProfileImage 반영
           _mainProfileImage = userData["mainProfileImage"];
 
           return SingleChildScrollView(
@@ -122,16 +128,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 프로필 이미지 표시 및 변경
   Widget _buildProfileImage() {
     return GestureDetector(
       onTap: () async {
-        // 이미지를 클릭하면 ProfileImagePage로 이동
         final result = await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const ProfileImagePage()),
         );
-        // ProfileImagePage에서 반환된 mainProfileImage를 반영
         if (result != null || result == null) {
           setState(() {
             _mainProfileImage = result;
@@ -139,7 +142,6 @@ class _ProfilePageState extends State<ProfilePage> {
         }
       },
       onLongPress: () {
-        // 길게 누르면 FullScreenImagePage로 이동
         List<String> validImageUrls = _profileImages
             .map((img) => img['url'] as String?)
             .where((url) => url != null && url.isNotEmpty)
@@ -189,7 +191,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 정보 표시 + 클릭 시 변경 가능
   Widget _buildEditableField(String label, String value, IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -232,11 +233,10 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 프로필 정보 섹션
   Widget _buildProfileInfo() {
     return Column(
       children: [
-        _buildEditableField("닉네임", _nickname, Icons.person, () async {
+        _buildEditableField(AppLocalizations.of(context)!.nickname, _nickname, Icons.person, () async {
           String? updatedNickname = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const NicknameEditPage()),
@@ -246,7 +246,7 @@ class _ProfilePageState extends State<ProfilePage> {
             await _firestoreService.updateUserData({"nickname": _nickname});
           }
         }),
-        _buildEditableField("홈샵", _homeShop, Icons.store, () async {
+        _buildEditableField(AppLocalizations.of(context)!.homeShop, _homeShop, Icons.store, () async {
           String? updatedHomeShop = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const HomeShopPage()),
@@ -256,7 +256,7 @@ class _ProfilePageState extends State<ProfilePage> {
             await _firestoreService.updateUserData({"homeShop": _homeShop});
           }
         }),
-        _buildEditableField("다트보드", _dartBoard, Icons.dashboard, () async {
+        _buildEditableField(AppLocalizations.of(context)!.dartBoardLabel, _dartBoard, Icons.dashboard, () async {
           String? updatedBoard = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const DartboardPage()),
@@ -266,7 +266,7 @@ class _ProfilePageState extends State<ProfilePage> {
             await _firestoreService.updateUserData({"dartBoard": _dartBoard});
           }
         }),
-        _buildEditableField("레이팅", "$_rating", Icons.star, () async {
+        _buildEditableField(AppLocalizations.of(context)!.rating, "$_rating", Icons.star, () async {
           int? updatedRating = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const RatingPage()),
@@ -276,7 +276,7 @@ class _ProfilePageState extends State<ProfilePage> {
             await _firestoreService.updateUserData({"rating": _rating});
           }
         }),
-        _buildEditableField("메시지 설정", _messageSetting, Icons.message, () async {
+        _buildEditableField(AppLocalizations.of(context)!.messageSetting, _messageSetting, Icons.message, () async {
           String? updatedMessageSetting = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const MessageSettingPage()),
@@ -290,18 +290,17 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 친구 목록, 차단 목록, 로그아웃
   Widget _buildSettingsIcons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildSettingsIcon(Icons.people, "친구 목록", () {
+        _buildSettingsIcon(Icons.people, AppLocalizations.of(context)!.friends, () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendManagementPage()));
         }),
-        _buildSettingsIcon(Icons.block, "차단 목록", () {
+        _buildSettingsIcon(Icons.block, AppLocalizations.of(context)!.block, () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => const BlockedUsersPage()));
         }),
-        _buildSettingsIcon(Icons.logout, "로그아웃", () {
+        _buildSettingsIcon(Icons.logout, AppLocalizations.of(context)!.logout, () {
           showDialog(
             context: context,
             builder: (context) => LogoutDialog(firestoreService: _firestoreService),
@@ -311,7 +310,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 설정 아이콘 UI
   Widget _buildSettingsIcon(IconData icon, String label, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,

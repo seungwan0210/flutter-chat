@@ -15,6 +15,7 @@ class ProfileDetailPage extends StatefulWidget {
   final String nickname;
   final List<Map<String, dynamic>> profileImages;
   final bool isCurrentUser;
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
 
   const ProfileDetailPage({
     super.key,
@@ -22,6 +23,7 @@ class ProfileDetailPage extends StatefulWidget {
     required this.nickname,
     required this.profileImages,
     required this.isCurrentUser,
+    required this.onLocaleChange, // 필수 매개변수로 추가
   });
 
   @override
@@ -46,7 +48,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   String _rank = "💀";
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
-  bool _isPro = false; // isDiamond -> isPro
+  bool _isPro = false;
   bool _isActive = true;
 
   @override
@@ -71,7 +73,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   }
 
   String _calculateRank(int totalViews, bool isPro) {
-    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (isPro) return "assets/pro.png";
     if (totalViews >= 20000) return "assets/diamond.png";
     if (totalViews >= 15000) return "assets/emerald.png";
     if (totalViews >= 10000) return "assets/platinum_2.png";
@@ -463,7 +465,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 colors: [Colors.amber, Colors.orange],
               ),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfilePage(onLocaleChange: widget.onLocaleChange),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 12),
@@ -474,7 +481,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 colors: [Colors.amber, Colors.orange],
               ),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaySummaryPage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PlaySummaryPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                  ),
+                );
               },
             ),
           ],
@@ -532,6 +544,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                       chatPartnerImage: _mainProfileImage ?? "",
                       receiverId: receiverId,
                       receiverName: widget.nickname,
+                      onLocaleChange: widget.onLocaleChange,
                     ),
                   ),
                 );

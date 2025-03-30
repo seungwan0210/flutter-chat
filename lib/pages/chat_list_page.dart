@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import 'chat_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class ChatListPage extends StatefulWidget {
-  const ChatListPage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const ChatListPage({super.key, required this.onLocaleChange});
 
   @override
   State<ChatListPage> createState() => _ChatListPageState();
@@ -81,7 +84,7 @@ class _ChatListPageState extends State<ChatListPage> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("검색 중 오류가 발생했습니다: $e")),
+        SnackBar(content: Text("${AppLocalizations.of(context)!.errorSearching}: $e")),
       );
       setState(() {
         _filteredChatRooms = [];
@@ -103,17 +106,17 @@ class _ChatListPageState extends State<ChatListPage> {
             ? TextField(
           controller: _searchController,
           decoration: InputDecoration(
-            hintText: "닉네임 검색",
-            hintStyle: TextStyle(color: Colors.white70),
+            hintText: AppLocalizations.of(context)!.searchNickname,
+            hintStyle: const TextStyle(color: Colors.white70),
             border: InputBorder.none,
             focusedBorder: InputBorder.none,
           ),
           style: const TextStyle(color: Colors.white),
           autofocus: true,
         )
-            : const Text(
-          "채팅",
-          style: TextStyle(
+            : Text(
+          AppLocalizations.of(context)!.chat,
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -163,10 +166,10 @@ class _ChatListPageState extends State<ChatListPage> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 if (snapshot.hasError) {
-                  return const Center(
+                  return Center(
                     child: Text(
-                      "채팅 목록을 불러오는 중 오류가 발생했습니다.",
-                      style: TextStyle(color: Colors.redAccent),
+                      AppLocalizations.of(context)!.errorLoadingChatList,
+                      style: const TextStyle(color: Colors.redAccent),
                     ),
                   );
                 }
@@ -174,10 +177,10 @@ class _ChatListPageState extends State<ChatListPage> {
                 var chatRooms = snapshot.data!.docs;
 
                 if (chatRooms.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
-                      "채팅방이 없습니다.",
-                      style: TextStyle(color: Colors.black54),
+                      AppLocalizations.of(context)!.noChatRooms,
+                      style: const TextStyle(color: Colors.black54),
                     ),
                   );
                 }
@@ -208,12 +211,12 @@ class _ChatListPageState extends State<ChatListPage> {
                         if (userSnapshot.hasError) return const SizedBox();
 
                         var userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                        String otherUserName = userData["nickname"] ?? "알 수 없음";
+                        String otherUserName = userData["nickname"] ?? AppLocalizations.of(context)!.unknownUser;
                         List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
                         String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
                         // messageReceiveSetting 처리
-                        String messageSetting = userData["messageReceiveSetting"] ?? "모든 사람";
+                        String messageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
 
                         // 친구 목록 확인
                         bool isFriend = false;
@@ -223,17 +226,17 @@ class _ChatListPageState extends State<ChatListPage> {
                         }
 
                         // "메시지 차단" 설정된 사용자는 리스트에서 숨김
-                        if (messageSetting == "메시지 차단") {
+                        if (messageSetting == AppLocalizations.of(context)!.messageBlocked) {
                           return const SizedBox();
                         }
 
                         // "친구만 허용" 설정 + 내가 친구가 아닐 경우 숨김
-                        if (messageSetting == "친구만" && !isFriend) {
+                        if (messageSetting == AppLocalizations.of(context)!.friendsOnly && !isFriend) {
                           return const SizedBox();
                         }
 
                         // lastMessage 처리
-                        String lastMessage = "대화를 시작하세요!";
+                        String lastMessage = AppLocalizations.of(context)!.startChat;
                         var chatData = chatRoom.data() as Map<String, dynamic>;
                         if (chatData.containsKey('lastMessage')) {
                           lastMessage = chatData['lastMessage'] as String;
@@ -255,7 +258,7 @@ class _ChatListPageState extends State<ChatListPage> {
                                   MaterialPageRoute(
                                     builder: (context) => FullScreenImagePage(
                                       imageUrls: validImageUrls,
-                                      initialIndex: mainProfileImage != null && validImageUrls.contains(mainProfileImage)
+                                      initialIndex: mainProfileImage.isNotEmpty && validImageUrls.contains(mainProfileImage)
                                           ? validImageUrls.indexOf(mainProfileImage)
                                           : 0,
                                     ),
@@ -325,6 +328,7 @@ class _ChatListPageState extends State<ChatListPage> {
                                     chatPartnerName: otherUserName,
                                     receiverId: otherUserId,
                                     receiverName: otherUserName,
+                                    onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
                                   ),
                                 ),
                               );
@@ -347,9 +351,9 @@ class _ChatListPageState extends State<ChatListPage> {
   String _formatDate(DateTime time) {
     DateTime now = DateTime.now();
     if (time.year == now.year && time.month == now.month && time.day == now.day) {
-      return "오늘";
+      return AppLocalizations.of(context)!.today;
     } else if (time.year == now.year && time.month == now.month && time.day == now.day - 1) {
-      return "어제";
+      return AppLocalizations.of(context)!.yesterday;
     } else {
       return "${time.year}.${time.month.toString().padLeft(2, '0')}.${time.day.toString().padLeft(2, '0')}";
     }
@@ -357,7 +361,7 @@ class _ChatListPageState extends State<ChatListPage> {
 
   /// 시간 포맷 (hh:mm AM/PM)
   String _formatTime(DateTime time) {
-    String period = time.hour < 12 ? "오전" : "오후";
+    String period = time.hour < 12 ? AppLocalizations.of(context)!.am : AppLocalizations.of(context)!.pm;
     int hour = time.hour % 12;
     if (hour == 0) hour = 12;
     return "$period $hour:${time.minute.toString().padLeft(2, '0')}";

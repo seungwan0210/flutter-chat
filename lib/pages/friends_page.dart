@@ -14,7 +14,9 @@ import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class FriendsPage extends StatefulWidget {
-  const FriendsPage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const FriendsPage({super.key, required this.onLocaleChange});
 
   @override
   _FriendsPageState createState() => _FriendsPageState();
@@ -176,7 +178,7 @@ class _FriendsPageState extends State<FriendsPage> {
             const Divider(thickness: 0.5, color: Colors.grey, indent: 16, endIndent: 16),
             const SizedBox(height: 10),
             StreamBuilder<QuerySnapshot>(
-              stream: firestore.collection("users").doc(currentUserId).collection("favorites").snapshots(),
+              stream: firestore.collection("users").doc(auth.currentUser!.uid).collection("favorites").snapshots(),
               builder: (context, favoriteSnapshot) {
                 if (favoriteSnapshot.hasError) {
                   _logger.e("Error loading favorites: ${favoriteSnapshot.error}");
@@ -257,6 +259,7 @@ class _FriendsPageState extends State<FriendsPage> {
               nickname: nickname,
               profileImages: profileImages,
               isCurrentUser: true,
+              onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
             ),
           ),
         );
@@ -391,7 +394,12 @@ class _FriendsPageState extends State<FriendsPage> {
             ),
             child: ElevatedButton.icon(
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendSearchPage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                  ),
+                );
               },
               icon: const Icon(Icons.search, color: Colors.white),
               label: Text(AppLocalizations.of(context)!.goAddFriends, style: const TextStyle(color: Colors.white)),
@@ -411,7 +419,12 @@ class _FriendsPageState extends State<FriendsPage> {
     return IconButton(
       icon: const Icon(Icons.search, color: Colors.white),
       onPressed: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendSearchPage()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+          ),
+        );
       },
     );
   }
@@ -431,7 +444,12 @@ class _FriendsPageState extends State<FriendsPage> {
             IconButton(
               icon: const Icon(Icons.person_add, color: Colors.white),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendRequestsPage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FriendRequestsPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                  ),
+                );
               },
             ),
             if (requestCount > 0)
@@ -459,6 +477,7 @@ class _FriendsPageState extends State<FriendsPage> {
           receiverId: friendId,
           receiverName: friendName,
           receiverImages: profileImages,
+          onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
         ),
       ),
     );

@@ -14,12 +14,14 @@ class FriendInfoPage extends StatefulWidget {
   final String receiverId;
   final String receiverName;
   final List<Map<String, dynamic>> receiverImages;
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
 
   const FriendInfoPage({
     super.key,
     required this.receiverId,
     required this.receiverImages,
     required this.receiverName,
+    required this.onLocaleChange,
   });
 
   @override
@@ -195,6 +197,7 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           chatPartnerImage: _mainProfileImage ?? "",
           receiverId: widget.receiverId,
           receiverName: widget.receiverName,
+          onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
         ),
       ),
     );
@@ -278,7 +281,12 @@ class _FriendInfoPageState extends State<FriendInfoPage> {
           });
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const MainPage(initialIndex: 0)),
+            MaterialPageRoute(
+              builder: (context) => MainPage(
+                initialIndex: 0,
+                onLocaleChange: widget.onLocaleChange,
+              ),
+            ),
                 (Route<dynamic> route) => false,
           );
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.userBlocked)));

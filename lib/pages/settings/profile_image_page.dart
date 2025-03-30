@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../services/firestore_service.dart';
-import 'package:dartschat/pages/FullScreenImagePage.dart'; // FullScreenImagePage 임포트
+import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:logger/logger.dart';
 
 class ProfileImagePage extends StatefulWidget {
   const ProfileImagePage({super.key});
@@ -14,6 +16,7 @@ class ProfileImagePage extends StatefulWidget {
 class _ProfileImagePageState extends State<ProfileImagePage> {
   final FirestoreService _firestoreService = FirestoreService();
   final ImagePicker _picker = ImagePicker();
+  final Logger _logger = Logger();
   List<Map<String, dynamic>> _profileImages = [];
   String? _mainProfileImage;
   bool _isLoading = false;
@@ -23,9 +26,15 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
   void initState() {
     super.initState();
     _loadProfileImages();
+    _logger.i("ProfileImagePage initState called");
   }
 
-  /// Firestore에서 기존 프로필 이미지 리스트 로드
+  @override
+  void dispose() {
+    _logger.i("ProfileImagePage dispose called");
+    super.dispose();
+  }
+
   Future<void> _loadProfileImages() async {
     setState(() {
       _isLoading = true;
@@ -34,13 +43,12 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
 
     try {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
-      if (userData != null) {
+      if (userData != null && mounted) {
         List<Map<String, dynamic>> images = List<Map<String, dynamic>>.from(userData['profileImages'] ?? []);
-        // 타임스탬프 기준으로 내림차순 정렬 (최신에서 과거 순)
         images.sort((a, b) {
           DateTime dateA = DateTime.parse(a['timestamp'] ?? '1970-01-01T00:00:00');
           DateTime dateB = DateTime.parse(b['timestamp'] ?? '1970-01-01T00:00:00');
-          return dateB.compareTo(dateA); // 최신 날짜가 먼저 오도록
+          return dateB.compareTo(dateA);
         });
         setState(() {
           _profileImages = images;
@@ -48,43 +56,41 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = "프로필 이미지를 불러오는 중 오류가 발생했습니다: $e";
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingProfileImages}: $e";
+        });
+      }
+      _logger.e("Error loading profile images: $e");
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  /// 갤러리에서 이미지 선택
   Future<void> _pickImage() async {
     try {
       final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
       if (pickedFile != null && mounted) {
         File imageFile = File(pickedFile.path);
         await _uploadImage(imageFile);
-      } else {
-        if (mounted) {
-          setState(() {
-            _errorMessage = "이미지 선택이 취소되었거나 실패했습니다.";
-          });
-        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "이미지 선택 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorPickingImage}: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
         );
       }
+      _logger.e("Error picking image: $e");
     }
   }
 
-  /// 이미지 업로드 및 Firestore에 추가
   Future<void> _uploadImage(File imageFile) async {
     setState(() {
       _isLoading = true;
@@ -94,37 +100,34 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
     try {
       Map<String, dynamic> imageData = await _firestoreService.uploadProfileImage(imageFile);
       setState(() {
-        _profileImages.add(imageData);
-        // 타임스탬프 기준으로 내림차순 정렬 (최신에서 과거 순)
-        _profileImages.sort((a, b) {
-          DateTime dateA = DateTime.parse(a['timestamp'] ?? '1970-01-01T00:00:00');
-          DateTime dateB = DateTime.parse(b['timestamp'] ?? '1970-01-01T00:00:00');
-          return dateB.compareTo(dateA);
-        });
-        _mainProfileImage = imageData['url']; // 가장 최근 이미지를 대표 이미지로 설정
+        _profileImages.insert(0, imageData); // 최신 이미지를 맨 처음에 추가
+        _mainProfileImage = imageData['url']; // 자동으로 대표 이미지 설정
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("이미지가 업로드되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.imageUploaded)),
         );
       }
+      _logger.i("Image uploaded: ${imageData['url']}");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "이미지 업로드 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorUploadingImage}: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
         );
       }
+      _logger.e("Error uploading image: $e");
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  /// 이미지 삭제
   Future<void> _deleteImage(String imageUrl) async {
     setState(() {
       _isLoading = true;
@@ -141,26 +144,29 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("이미지가 삭제되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.imageDeleted)),
         );
       }
+      _logger.i("Image deleted: $imageUrl");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "이미지 삭제 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorDeletingImage}: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
         );
       }
+      _logger.e("Error deleting image: $e");
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  /// 대표 이미지 설정
   Future<void> _setMainImage(String imageUrl) async {
     setState(() {
       _isLoading = true;
@@ -171,7 +177,6 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       await _firestoreService.setMainProfileImage(imageUrl);
       setState(() {
         _mainProfileImage = imageUrl;
-        // 대표 이미지를 리스트의 맨 처음으로 이동 (내림차순이므로 맨 처음이 최신)
         int index = _profileImages.indexWhere((item) => item['url'] == imageUrl);
         if (index != -1) {
           var selectedImage = _profileImages.removeAt(index);
@@ -180,26 +185,29 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("대표 이미지가 설정되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.mainImageSet)),
         );
       }
+      _logger.i("Main image set: $imageUrl");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "대표 이미지 설정 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorSettingMainImage}: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
         );
       }
+      _logger.e("Error setting main image: $e");
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  /// 기본 이미지로 설정
   Future<void> _setDefaultImage() async {
     setState(() {
       _isLoading = true;
@@ -207,30 +215,33 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
     });
 
     try {
-      await _firestoreService.setMainProfileImage(null); // mainProfileImage를 null로 설정
+      await _firestoreService.setMainProfileImage(null);
       setState(() {
-        _mainProfileImage = null; // UI에서도 null로 설정하여 Checkbox 해제
+        _mainProfileImage = null;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("기본 이미지로 설정되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.defaultImageSet)),
         );
-        // Navigator.pop 시 mainProfileImage를 null로 전달
         Navigator.pop(context, null);
       }
+      _logger.i("Default image set");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "기본 이미지 설정 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorSettingDefaultImage}: $e";
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage!)),
         );
       }
+      _logger.e("Error setting default image: $e");
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -239,31 +250,19 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "프로필 이미지 변경",
-          style: TextStyle(color: Theme.of(context).appBarTheme.foregroundColor),
+          AppLocalizations.of(context)!.profileImageSettings,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _isLoading
-                ? null
-                : () {
-              // 첫 번째 이미지를 반환 (호환성을 위해)
-              String? firstImage = _mainProfileImage;
-              Navigator.pop(context, firstImage);
-            },
-          ),
-        ],
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
           children: [
             if (_errorMessage != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Text(
                   _errorMessage!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
@@ -274,92 +273,154 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
             else
               Expanded(
                 child: _profileImages.isEmpty
-                    ? const Center(
+                    ? Center(
                   child: Text(
-                    "아직 업로드된 이미지가 없습니다.",
-                    style: TextStyle(fontSize: 16),
+                    AppLocalizations.of(context)!.noImagesUploaded,
+                    style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                 )
-                    : ListView.builder(
+                    : GridView.builder(
                   padding: const EdgeInsets.all(16.0),
-                  itemCount: _profileImages.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: _profileImages.length + 1, // +1 for default image
                   itemBuilder: (context, index) {
-                    Map<String, dynamic> imageData = _profileImages[index];
+                    if (index == 0) {
+                      // Default image tile
+                      bool isMainImage = _mainProfileImage == null;
+                      return GestureDetector(
+                        onTap: () => _setDefaultImage(),
+                        onLongPress: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FullScreenImagePage(
+                                imageUrls: ["default"],
+                                initialIndex: 0,
+                                isDefaultImage: true,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          color: isMainImage ? Theme.of(context).primaryColor.withOpacity(0.2) : Theme.of(context).cardColor,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: Icon(
+                                  Icons.person,
+                                  size: 80,
+                                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                                ),
+                              ),
+                              if (isMainImage)
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Icon(
+                                    Icons.star,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              Positioned(
+                                bottom: 8,
+                                left: 8,
+                                right: 8,
+                                child: Text(
+                                  AppLocalizations.of(context)!.defaultImage,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    final imageIndex = index - 1;
+                    Map<String, dynamic> imageData = _profileImages[imageIndex];
                     String? imageUrl = imageData['url'];
                     String timestamp = imageData['timestamp'] ?? '';
                     bool isMainImage = imageUrl == _mainProfileImage;
 
-                    // url이 null이거나 빈 문자열인 경우 기본 아이콘 표시
-                    if (imageUrl == null || imageUrl.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
+                    if (imageUrl == null || imageUrl.isEmpty) return const SizedBox.shrink();
 
-                    // 타임스탬프에서 날짜만 추출 (YYYY-MM-DD)
-                    String dateOnly = '';
-                    if (timestamp.isNotEmpty) {
-                      DateTime dateTime = DateTime.parse(timestamp);
-                      dateOnly = "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}";
-                    }
+                    String dateOnly = timestamp.isNotEmpty
+                        ? "${DateTime.parse(timestamp).year}-${DateTime.parse(timestamp).month.toString().padLeft(2, '0')}-${DateTime.parse(timestamp).day.toString().padLeft(2, '0')}"
+                        : '';
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: ListTile(
-                        leading: GestureDetector(
-                          onTap: () {
-                            // null이 아닌 url만 필터링하여 전달
-                            List<String> validImageUrls = _profileImages
-                                .map((img) => img['url'] as String?)
-                                .where((url) => url != null && url.isNotEmpty)
-                                .cast<String>()
-                                .toList();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => FullScreenImagePage(
-                                  imageUrls: validImageUrls,
-                                  initialIndex: validImageUrls.indexOf(imageUrl),
+                    return GestureDetector(
+                      onTap: () => _setMainImage(imageUrl),
+                      onLongPress: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FullScreenImagePage(
+                              imageUrls: [imageUrl],
+                              initialIndex: 0,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        color: isMainImage ? Theme.of(context).primaryColor.withOpacity(0.2) : Theme.of(context).cardColor,
+                        child: Stack(
+                          children: [
+                            Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              errorBuilder: (context, error, stackTrace) => Icon(
+                                Icons.error,
+                                size: 80,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                            if (isMainImage)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Icon(
+                                  Icons.star,
+                                  color: Theme.of(context).primaryColor,
                                 ),
                               ),
-                            );
-                          },
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundImage: NetworkImage(imageUrl),
-                            child: imageUrl.isEmpty
-                                ? Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Theme.of(context).textTheme.bodyMedium?.color,
-                            )
-                                : null,
-                          ),
-                        ),
-                        title: Text(
-                          dateOnly.isNotEmpty ? dateOnly : '날짜 정보 없음',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Theme.of(context).textTheme.bodyMedium?.color,
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Checkbox(
-                              value: isMainImage,
-                              onChanged: (value) {
-                                if (value == true) {
-                                  _setMainImage(imageUrl);
-                                }
-                              },
-                            ),
-                            TextButton(
-                              onPressed: () => _deleteImage(imageUrl),
-                              child: const Text(
-                                "삭제",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              right: 8,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      dateOnly.isNotEmpty ? dateOnly : AppLocalizations.of(context)!.noDate,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                        shadows: [Shadow(color: Colors.black, blurRadius: 2)],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _deleteImage(imageUrl),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -369,55 +430,27 @@ class _ProfileImagePageState extends State<ProfileImagePage> {
                   },
                 ),
               ),
-            // 버튼 섹션
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _setDefaultImage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          disabledBackgroundColor: Theme.of(context).disabledColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: Text(
-                          "기본 이미지 설정",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                        ),
-                      ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _pickImage,
+                  icon: const Icon(Icons.add_a_photo),
+                  label: Text(
+                    AppLocalizations.of(context)!.addImage,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onPrimary,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SizedBox(
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _pickImage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          disabledBackgroundColor: Theme.of(context).disabledColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: Text(
-                          "이미지 추가",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                ],
+                ),
               ),
             ),
           ],

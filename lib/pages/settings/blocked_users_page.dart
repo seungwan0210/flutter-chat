@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart'; // Logger 추가
+import 'package:logger/logger.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:dartschat/generated/app_localizations.dart';
 
 class BlockedUsersPage extends StatefulWidget {
   const BlockedUsersPage({super.key});
@@ -13,14 +14,14 @@ class BlockedUsersPage extends StatefulWidget {
 
 class _BlockedUsersPageState extends State<BlockedUsersPage> {
   final FirestoreService _firestoreService = FirestoreService();
-  final Logger _logger = Logger(); // Logger 인스턴스 추가
+  final Logger _logger = Logger();
 
   Future<void> _unblockUser(String userId) async {
     try {
       await _firestoreService.unblockUser(userId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("차단이 해제되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.blockReleased)),
         );
       }
       _logger.i("User unblocked: userId: $userId");
@@ -28,7 +29,7 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
       _logger.e("Error unblocking user: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("차단 해제 중 오류가 발생했습니다: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorTogglingBlock}: $e")),
         );
       }
     }
@@ -50,14 +51,11 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "차단 관리",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+        title: Text(
+          AppLocalizations.of(context)!.blockManagement,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -69,22 +67,22 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
           }
           if (snapshot.hasError) {
             _logger.e("Error loading blocked users: ${snapshot.error}");
-            return const Center(
+            return Center(
               child: Text(
-                "차단 목록을 불러오는 중 오류가 발생했습니다.",
-                style: TextStyle(color: Colors.redAccent),
+                AppLocalizations.of(context)!.errorLoadingBlockedUsers,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             );
           }
 
           List<Map<String, dynamic>> blockedUsers = snapshot.data!;
           if (blockedUsers.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
-                "차단된 사용자가 없습니다.",
+                AppLocalizations.of(context)!.noBlockedUsers,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.black54,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                 ),
               ),
             );
@@ -98,102 +96,101 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
               String userId = user["blockedUserId"] ?? "";
               if (userId.isEmpty) {
                 _logger.w("Empty userId found in blocked users list");
-                return const SizedBox();
+                return const SizedBox.shrink();
               }
 
               return StreamBuilder<DocumentSnapshot>(
                 stream: FirebaseFirestore.instance.collection("users").doc(userId).snapshots(),
                 builder: (context, userSnapshot) {
                   if (!userSnapshot.hasData) {
-                    return const ListTile(title: Text("로딩 중...", style: TextStyle(color: Colors.black87)));
+                    return const SizedBox.shrink(); // 로딩 중일 때 아무것도 표시 안 함
                   }
                   if (userSnapshot.hasError) {
                     _logger.e("Error loading user data for $userId: ${userSnapshot.error}");
-                    return const ListTile(title: Text("정보 로드 오류", style: TextStyle(color: Colors.black87)));
+                    return const SizedBox.shrink(); // 오류 시 표시 안 함
                   }
-                  if (!userSnapshot.data!.exists) {
-                    return const ListTile(title: Text("사용자 데이터 없음", style: TextStyle(color: Colors.black87)));
-                  }
-
-                  var userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                  if (userData == null) {
-                    return const ListTile(title: Text("사용자 데이터 없음", style: TextStyle(color: Colors.black87)));
+                  if (!userSnapshot.data!.exists || userSnapshot.data!.data() == null) {
+                    _logger.w("User data not found for $userId");
+                    return const SizedBox.shrink(); // 데이터 없으면 표시 안 함
                   }
 
-                  String nickname = userData["nickname"] ?? user["nickname"] ?? "알 수 없는 사용자";
+                  var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                  String nickname = userData["nickname"] ?? user["nickname"] ?? AppLocalizations.of(context)!.unknownUser;
                   List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? user["profileImages"] ?? []);
                   String mainProfileImage = userData["mainProfileImage"] ?? user["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
                   bool isActive = userData["isActive"] ?? true;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      leading: GestureDetector(
-                        onTap: () {
-                          List<String> validImageUrls = profileImages
-                              .map((img) => img['url'] as String?)
-                              .where((url) => url != null && url.isNotEmpty)
-                              .cast<String>()
-                              .toList();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => FullScreenImagePage(
-                                imageUrls: validImageUrls,
-                                initialIndex: mainProfileImage.isNotEmpty && validImageUrls.contains(mainProfileImage)
-                                    ? validImageUrls.indexOf(mainProfileImage)
-                                    : 0,
-                              ),
-                            ),
-                          );
-                        },
-                        child: CircleAvatar(
-                          radius: 30,
-                          backgroundImage: mainProfileImage.isNotEmpty ? NetworkImage(mainProfileImage) : null,
-                          child: mainProfileImage.isEmpty
-                              ? Icon(
-                            Icons.person,
-                            color: Theme.of(context).textTheme.bodyMedium?.color,
-                            size: 40,
-                          )
-                              : null,
-                          onBackgroundImageError: mainProfileImage.isNotEmpty
-                              ? (exception, stackTrace) {
-                            _logger.e("Image load error for $mainProfileImage: $exception");
-                            return null;
-                          }
-                              : null,
-                        ),
-                      ),
-                      title: Text(
-                        nickname,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                      subtitle: !isActive
-                          ? const Text(
-                        "비활성화된 계정",
-                        style: TextStyle(color: Colors.redAccent),
-                      )
-                          : null,
-                      trailing: IconButton(
-                        icon: Icon(
-                          Icons.block,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        onPressed: () => _unblockUser(userId),
-                      ),
-                    ),
-                  );
+                  return _buildUserCard(nickname, mainProfileImage, isActive, onUnblock: () => _unblockUser(userId));
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildUserCard(String nickname, String? imageUrl, bool isActive, {VoidCallback? onUnblock}) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: GestureDetector(
+          onTap: imageUrl != null && imageUrl.isNotEmpty
+              ? () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FullScreenImagePage(
+                  imageUrls: [imageUrl],
+                  initialIndex: 0,
+                ),
+              ),
+            );
+          }
+              : null,
+          child: CircleAvatar(
+            radius: 30,
+            backgroundImage: imageUrl != null && imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
+            child: imageUrl == null || imageUrl.isEmpty
+                ? Icon(
+              Icons.person,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+              size: 40,
+            )
+                : null,
+            onBackgroundImageError: imageUrl != null && imageUrl.isNotEmpty
+                ? (exception, stackTrace) {
+              _logger.e("Image load error for $imageUrl: $exception");
+              return null;
+            }
+                : null,
+          ),
+        ),
+        title: Text(
+          nickname,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+        ),
+        subtitle: !isActive
+            ? Text(
+          AppLocalizations.of(context)!.accountDeactivated,
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        )
+            : null,
+        trailing: IconButton(
+          icon: Icon(
+            Icons.undo,
+            color: Theme.of(context).primaryColor,
+          ),
+          onPressed: onUnblock,
+          tooltip: AppLocalizations.of(context)!.unblock,
+        ),
       ),
     );
   }

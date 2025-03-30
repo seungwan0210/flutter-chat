@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/profile_detail_page.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
@@ -12,6 +13,7 @@ class ChatPage extends StatefulWidget {
   final String chatPartnerImage; // 대표 이미지 (mainProfileImage)
   final String receiverId;
   final String receiverName;
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
 
   ChatPage({
     required this.chatRoomId,
@@ -19,6 +21,7 @@ class ChatPage extends StatefulWidget {
     required this.chatPartnerImage,
     required this.receiverId,
     required this.receiverName,
+    required this.onLocaleChange,
   });
 
   @override
@@ -47,7 +50,7 @@ class _ChatPageState extends State<ChatPage> {
 
       if (!receiverSnapshot.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("상대방 정보를 찾을 수 없습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.userInfoNotFound)),
         );
         return;
       }
@@ -55,19 +58,19 @@ class _ChatPageState extends State<ChatPage> {
       var receiverData = receiverSnapshot.data() as Map<String, dynamic>? ?? {};
       String messageSetting = receiverData.containsKey("messageReceiveSetting")
           ? receiverData["messageReceiveSetting"]
-          : "모든 사람";
+          : AppLocalizations.of(context)!.all_allowed;
       Map<String, dynamic>? friends = receiverData.containsKey("friends")
           ? receiverData["friends"] as Map<String, dynamic>
           : {};
 
-      if (messageSetting == "메시지 차단") {
+      if (messageSetting == AppLocalizations.of(context)!.messageBlocked) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("상대방이 메시지를 받을 수 없습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.cannotSendMessage)),
         );
         return;
-      } else if (messageSetting == "친구만" && !friends.containsKey(senderId)) {
+      } else if (messageSetting == AppLocalizations.of(context)!.friendsOnly && !friends.containsKey(senderId)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구만 메시지를 보낼 수 있습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.friendsOnlyMessage)),
         );
         return;
       }
@@ -92,7 +95,7 @@ class _ChatPageState extends State<ChatPage> {
       _scrollToBottom();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("메시지 전송 중 오류가 발생했습니다: $e")),
+        SnackBar(content: Text("${AppLocalizations.of(context)!.errorSendingMessage}: $e")),
       );
     }
   }
@@ -126,8 +129,8 @@ class _ChatPageState extends State<ChatPage> {
             ? TextField(
           controller: _searchController,
           decoration: InputDecoration(
-            hintText: "대화 내용 검색",
-            hintStyle: TextStyle(color: Colors.white70),
+            hintText: AppLocalizations.of(context)!.searchMessages,
+            hintStyle: const TextStyle(color: Colors.white70),
             border: InputBorder.none,
             focusedBorder: InputBorder.none,
           ),
@@ -143,8 +146,7 @@ class _ChatPageState extends State<ChatPage> {
           children: [
             GestureDetector(
               onTap: () {
-                // 프로필 이미지를 클릭하면 ProfileDetailPage로 이동
-                _firestoreService.incrementProfileViews(widget.receiverId); // 조회 수 증가
+                _firestoreService.incrementProfileViews(widget.receiverId);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -153,6 +155,7 @@ class _ChatPageState extends State<ChatPage> {
                       nickname: widget.chatPartnerName,
                       profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
                       isCurrentUser: false,
+                      onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
                     ),
                   ),
                 );
@@ -212,7 +215,7 @@ class _ChatPageState extends State<ChatPage> {
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
-                      "메시지를 불러오는 중 오류가 발생했습니다.",
+                      AppLocalizations.of(context)!.errorLoadingMessages,
                       style: TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   );
@@ -267,7 +270,7 @@ class _ChatPageState extends State<ChatPage> {
                         _buildMessageBubble(
                           (message.data() != null && (message.data() as Map<String, dynamic>).containsKey('text'))
                               ? message['text']
-                              : "[메시지 없음]",
+                              : AppLocalizations.of(context)!.noMessage,
                           isMe,
                           timeFormatted,
                         ),
@@ -298,8 +301,7 @@ class _ChatPageState extends State<ChatPage> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // 프로필 이미지를 클릭하면 ProfileDetailPage로 이동
-                    _firestoreService.incrementProfileViews(widget.receiverId); // 조회 수 증가
+                    _firestoreService.incrementProfileViews(widget.receiverId);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -308,6 +310,7 @@ class _ChatPageState extends State<ChatPage> {
                           nickname: widget.chatPartnerName,
                           profileImages: [], // Firestore에서 가져온 이미지를 전달해야 함
                           isCurrentUser: false,
+                          onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
                         ),
                       ),
                     );
@@ -418,7 +421,7 @@ class _ChatPageState extends State<ChatPage> {
             child: TextField(
               controller: _messageController,
               decoration: InputDecoration(
-                hintText: '메시지 입력',
+                hintText: AppLocalizations.of(context)!.enterMessage,
                 border: InputBorder.none,
                 hintStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
               ),
@@ -446,6 +449,6 @@ class _ChatPageState extends State<ChatPage> {
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return "";
     DateTime date = timestamp.toDate();
-    return DateFormat("a h:mm", "ko_KR").format(date).replaceAll("AM", "오전").replaceAll("PM", "오후");
+    return DateFormat("a h:mm", "ko_KR").format(date).replaceAll("AM", AppLocalizations.of(context)!.am).replaceAll("PM", AppLocalizations.of(context)!.pm);
   }
 }

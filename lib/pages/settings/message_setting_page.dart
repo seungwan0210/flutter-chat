@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:logger/logger.dart';
 
 class MessageSettingPage extends StatefulWidget {
   const MessageSettingPage({super.key});
@@ -10,45 +13,74 @@ class MessageSettingPage extends StatefulWidget {
 
 class _MessageSettingPageState extends State<MessageSettingPage> {
   final FirestoreService _firestoreService = FirestoreService();
-  String _selectedMessageSetting = "모든 사람";
+  final Logger _logger = Logger();
+  String _selectedMessageSetting = "";
   bool _isSaving = false;
   bool _isLoaded = false;
   String? _errorMessage;
 
-  final List<String> _messageSettings = ["모든 사람", "친구만", "메시지 차단"];
+  final List<String> _messageSettings = [];
 
   @override
   void initState() {
     super.initState();
     _loadMessageSetting();
+    _logger.i("MessageSettingPage initState called");
   }
 
-  /// Firestore에서 현재 유저의 메시지 설정 가져오기
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initializeMessageSettings();
+    _logger.i("MessageSettingPage didChangeDependencies called");
+  }
+
+  @override
+  void dispose() {
+    _logger.i("MessageSettingPage dispose called");
+    super.dispose();
+  }
+
   Future<void> _loadMessageSetting() async {
     try {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
       if (userData != null && mounted) {
         setState(() {
-          _selectedMessageSetting = userData["messageReceiveSetting"] ?? "모든 사람";
+          _selectedMessageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
           _isLoaded = true;
         });
-      } else {
+      } else if (mounted) {
         setState(() {
-          _errorMessage = "사용자 데이터를 불러올 수 없습니다.";
+          _errorMessage = AppLocalizations.of(context)!.errorLoadingUserData;
           _isLoaded = true;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "메시지 설정을 불러오는 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingMessageSettings}: $e";
           _isLoaded = true;
         });
       }
+      _logger.e("Error loading message settings: $e");
     }
   }
 
-  /// Firestore에 메시지 수신 설정 업데이트
+  void _initializeMessageSettings() {
+    _messageSettings.clear();
+    _messageSettings.addAll([
+      AppLocalizations.of(context)!.all_allowed,
+      AppLocalizations.of(context)!.friendsOnly,
+      AppLocalizations.of(context)!.messageBlocked,
+    ]);
+    // 로케일 변경 시 _selectedMessageSetting이 유효한지 확인
+    if (!_messageSettings.contains(_selectedMessageSetting)) {
+      setState(() {
+        _selectedMessageSetting = _messageSettings[0]; // 기본값으로 설정
+      });
+    }
+  }
+
   Future<void> _saveMessageSetting() async {
     setState(() {
       _isSaving = true;
@@ -61,16 +93,18 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("메시지 수신 설정이 변경되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.messageSettingsSaved)),
         );
         Navigator.pop(context, _selectedMessageSetting);
       }
+      _logger.i("Message setting saved: $_selectedMessageSetting");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "메시지 설정 저장 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.saveFailed}: $e";
         });
       }
+      _logger.e("Error saving message setting: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -83,15 +117,12 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "메시지 수신 설정",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
-          ),
+          AppLocalizations.of(context)!.messageSettings,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
@@ -107,13 +138,13 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
                   : !_isLoaded
                   ? const Center(child: CircularProgressIndicator())
                   : ListView.builder(
-                itemCount: _messageSettings.length,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                itemCount: _messageSettings.length,
                 itemBuilder: (context, index) {
                   String setting = _messageSettings[index];
                   return Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 5,
+                    elevation: 2,
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     color: Theme.of(context).cardColor,
                     child: RadioListTile<String>(
@@ -150,22 +181,30 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: _isSaving ? null : _saveMessageSetting,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSaving
-                      ? CircularProgressIndicator(color: Theme.of(context).colorScheme.onPrimary)
-                      : Text(
-                    "저장하기",
+                  icon: _isSaving
+                      ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    AppLocalizations.of(context)!.save,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),

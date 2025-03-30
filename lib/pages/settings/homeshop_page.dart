@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // FirebaseAuth 추가 (선택적)
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:logger/logger.dart';
 
 class HomeShopPage extends StatefulWidget {
   const HomeShopPage({super.key});
@@ -12,6 +14,7 @@ class HomeShopPage extends StatefulWidget {
 class _HomeShopPageState extends State<HomeShopPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _homeShopController = TextEditingController();
+  final Logger _logger = Logger();
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -19,9 +22,9 @@ class _HomeShopPageState extends State<HomeShopPage> {
   void initState() {
     super.initState();
     _loadHomeShop();
+    _logger.i("HomeShopPage initState called");
   }
 
-  /// Firestore에서 현재 사용자의 홈샵 정보 가져오기
   Future<void> _loadHomeShop() async {
     try {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
@@ -33,22 +36,21 @@ class _HomeShopPageState extends State<HomeShopPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "홈샵 정보를 불러오는 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingHomeShop}: $e";
         });
       }
+      _logger.e("Error loading home shop: $e");
     }
   }
 
-  /// 홈샵 유효성 검사 (실시간 반영)
   bool _isValidHomeShop(String homeShop) {
     return homeShop.trim().length >= 2 && homeShop.trim().length <= 30;
   }
 
-  /// 입력 중 실시간 유효성 검사
   void _validateHomeShop(String value) {
     if (value.isNotEmpty && !_isValidHomeShop(value)) {
       setState(() {
-        _errorMessage = "홈샵은 2~30자 사이로 입력해주세요.";
+        _errorMessage = AppLocalizations.of(context)!.invalidHomeShopLength;
       });
     } else {
       setState(() {
@@ -57,17 +59,16 @@ class _HomeShopPageState extends State<HomeShopPage> {
     }
   }
 
-  /// 홈샵 저장 기능
   Future<void> _saveHomeShop() async {
     String newHomeShop = _homeShopController.text.trim();
 
     if (newHomeShop.isEmpty) {
-      setState(() => _errorMessage = "홈샵을 입력해주세요!");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.enterHomeShop);
       return;
     }
 
     if (!_isValidHomeShop(newHomeShop)) {
-      setState(() => _errorMessage = "홈샵은 2~30자 사이로 입력해주세요.");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.invalidHomeShopLength);
       return;
     }
 
@@ -80,17 +81,19 @@ class _HomeShopPageState extends State<HomeShopPage> {
       await _firestoreService.updateUserData({"homeShop": newHomeShop});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("홈샵이 변경되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.homeShopSaved)),
         );
         _homeShopController.clear();
         Navigator.pop(context, newHomeShop);
       }
+      _logger.i("Home shop saved: $newHomeShop");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "홈샵 저장 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.saveFailed}: $e";
         });
       }
+      _logger.e("Error saving home shop: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -103,65 +106,70 @@ class _HomeShopPageState extends State<HomeShopPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "홈샵 변경",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
-          ),
+          AppLocalizations.of(context)!.homeShopSettings,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
-        actions: [
-          _isSaving
-              ? Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: CircularProgressIndicator(color: Theme.of(context).colorScheme.onPrimary),
-          )
-              : IconButton(
-            icon: Icon(Icons.check, color: Theme.of(context).appBarTheme.foregroundColor),
-            onPressed: _isSaving ? null : _saveHomeShop,
-          ),
-        ],
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           child: Column(
             children: [
-              TextField(
-                controller: _homeShopController,
-                maxLength: 30,
-                onChanged: _validateHomeShop, // 실시간 유효성 검사
-                decoration: InputDecoration(
-                  labelText: "새 홈샵",
-                  labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _homeShopController,
+                    maxLength: 30,
+                    onChanged: _validateHomeShop,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.newHomeShop,
+                      labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      errorText: _errorMessage,
+                    ),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                   ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                  errorText: _errorMessage,
                 ),
-                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveHomeShop,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  disabledBackgroundColor: Theme.of(context).disabledColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text(
-                  "저장",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onPrimary,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveHomeShop,
+                  icon: _isSaving
+                      ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    AppLocalizations.of(context)!.save,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),

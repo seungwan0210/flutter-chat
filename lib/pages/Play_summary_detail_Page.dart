@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
+import 'package:intl/intl.dart' as intl;
 
 class PlaySummaryDetailPage extends StatefulWidget {
   final DateTime selectedDate;
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
 
-  const PlaySummaryDetailPage({super.key, required this.selectedDate});
+  const PlaySummaryDetailPage({super.key, required this.selectedDate, required this.onLocaleChange});
 
   @override
   State<PlaySummaryDetailPage> createState() => _PlaySummaryDetailPageState();
@@ -24,7 +26,6 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
   String? _errorMessage;
   String _selectedEmoji = "😊"; // 기본 이모티콘 (최상)
 
-  // 이모티콘 목록
   final Map<String, String> _emojiOptions = {
     "😊": "최상",
     "🙂": "중상",
@@ -48,43 +49,46 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     super.dispose();
   }
 
-  /// Firestore에서 선택된 날짜의 플레이 요약 로드
   Future<void> _loadSummary() async {
-    String userId = _auth.currentUser!.uid;
-    String date = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
-    DocumentSnapshot snapshot = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(userId)
-        .collection("daily_play_summary")
-        .doc(date)
-        .get();
+    try {
+      String userId = _auth.currentUser!.uid;
+      String date = intl.DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+      DocumentSnapshot snapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userId)
+          .collection("daily_play_summary")
+          .doc(date)
+          .get();
 
-    if (snapshot.exists) {
-      var data = snapshot.data() as Map<String, dynamic>;
+      if (snapshot.exists) {
+        var data = snapshot.data() as Map<String, dynamic>;
+        setState(() {
+          _selectedBoard = data['board'] ?? "다트라이브";
+          _gamesPlayedController.text = data['games_played']?.toString() ?? "";
+          _bestPerformanceController.text = data['best_performance'] ?? "";
+          _improvementController.text = data['improvements'] ?? "";
+          _memoController.text = data['memo'] ?? "";
+          _selectedEmoji = data['emoji'] ?? "😊";
+        });
+      }
+    } catch (e) {
       setState(() {
-        _selectedBoard = data['board'] ?? "다트라이브";
-        _gamesPlayedController.text = data['games_played']?.toString() ?? "";
-        _bestPerformanceController.text = data['best_performance'] ?? "";
-        _improvementController.text = data['improvements'] ?? "";
-        _memoController.text = data['memo'] ?? "";
-        _selectedEmoji = data['emoji'] ?? "😊";
+        _errorMessage = "${AppLocalizations.of(context)!.errorLoadingStats}: $e";
       });
     }
   }
 
-  /// Firestore에 플레이 요약 저장
   Future<void> _savePlaySummary() async {
-    // 입력 검증 강화
     if (_gamesPlayedController.text.isEmpty) {
-      setState(() => _errorMessage = "경기 수를 입력해주세요!");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.enterGamesPlayed);
       return;
     }
     if (_bestPerformanceController.text.isEmpty) {
-      setState(() => _errorMessage = "오늘 가장 잘된 점을 입력해주세요!");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.enterBestPerformance);
       return;
     }
     if (_improvementController.text.isEmpty) {
-      setState(() => _errorMessage = "오늘 개선할 점을 입력해주세요!");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.enterImprovement);
       return;
     }
 
@@ -94,7 +98,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     });
 
     String userId = _auth.currentUser!.uid;
-    String date = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+    String date = intl.DateFormat('yyyy-MM-dd').format(widget.selectedDate);
     DocumentReference summaryRef = FirebaseFirestore.instance
         .collection("users")
         .doc(userId)
@@ -111,7 +115,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
         "best_performance": _bestPerformanceController.text,
         "improvements": _improvementController.text,
         "memo": _memoController.text,
-        "emoji": _selectedEmoji, // 이모티콘 저장
+        "emoji": _selectedEmoji,
       };
 
       if (snapshot.exists) {
@@ -121,12 +125,12 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("플레이 요약이 저장되었습니다!")),
+        SnackBar(content: Text(AppLocalizations.of(context)!.playSummarySaved)),
       );
       Navigator.pop(context);
     } catch (e) {
       setState(() {
-        _errorMessage = "저장 실패: $e";
+        _errorMessage = "${AppLocalizations.of(context)!.saveFailed}: $e";
       });
     } finally {
       setState(() => _isLoading = false);
@@ -138,7 +142,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "${DateFormat('yyyy년 M월 d일').format(widget.selectedDate)} 요약",
+          "${getFormattedDate(context, widget.selectedDate)} ${AppLocalizations.of(context)!.summary}",
           style: TextStyle(
             color: Theme.of(context).appBarTheme.foregroundColor,
             fontSize: 20,
@@ -158,7 +162,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "플레이 요약 작성",
+                  AppLocalizations.of(context)!.writePlaySummary,
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -170,13 +174,13 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
                 const Divider(height: 40, thickness: 1, color: Colors.grey),
                 _buildDropdown(),
                 const Divider(height: 40, thickness: 1, color: Colors.grey),
-                _buildTextField(_gamesPlayedController, "경기 수", TextInputType.number),
+                _buildTextField(_gamesPlayedController, AppLocalizations.of(context)!.gamesPlayed, TextInputType.number),
                 const Divider(height: 40, thickness: 1, color: Colors.grey),
-                _buildTextField(_bestPerformanceController, "오늘 가장 잘된 점"),
+                _buildTextField(_bestPerformanceController, AppLocalizations.of(context)!.bestPerformance),
                 const Divider(height: 40, thickness: 1, color: Colors.grey),
-                _buildTextField(_improvementController, "오늘 개선할 점"),
+                _buildTextField(_improvementController, AppLocalizations.of(context)!.improvement),
                 const Divider(height: 40, thickness: 1, color: Colors.grey),
-                _buildTextField(_memoController, "한 줄 메모"),
+                _buildTextField(_memoController, AppLocalizations.of(context)!.memo),
                 if (_errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 15),
@@ -189,7 +193,10 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
                     ),
                   ),
                 const SizedBox(height: 20),
-                _buildButton("저장하기", _savePlaySummary),
+                _buildButton(
+                  _isLoading ? AppLocalizations.of(context)!.loading : AppLocalizations.of(context)!.save,
+                  _isLoading ? () {} : _savePlaySummary,
+                ),
               ],
             ),
           ),
@@ -198,13 +205,12 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     );
   }
 
-  /// 이모티콘 선택 UI (한 줄로 표시, 카드 형태 제거)
   Widget _buildEmojiSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "오늘의 플레이 상태",
+          AppLocalizations.of(context)!.playStatusToday,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -233,7 +239,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    entry.value,
+                    translateEmoji(context, entry.value),
                     style: TextStyle(
                       fontSize: 12,
                       color: _selectedEmoji == entry.key ? Theme.of(context).primaryColor : Colors.black87,
@@ -252,11 +258,11 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     return DropdownButtonFormField<String>(
       value: _selectedBoard,
       items: ["다트라이브", "피닉스", "그란보드", "홈보드"].map((board) {
-        return DropdownMenuItem(value: board, child: Text(board));
+        return DropdownMenuItem(value: board, child: Text(translate(context, board)));
       }).toList(),
-      onChanged: (value) => setState(() => _selectedBoard = value!),
+      onChanged: _isLoading ? null : (value) => setState(() => _selectedBoard = value!),
       decoration: InputDecoration(
-        labelText: "플레이한 보드",
+        labelText: AppLocalizations.of(context)!.playedBoard,
         labelStyle: TextStyle(
           color: Theme.of(context).textTheme.bodyMedium?.color,
           fontSize: 16,
@@ -285,6 +291,7 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
     return TextField(
       controller: controller,
       keyboardType: keyboardType ?? TextInputType.text,
+      enabled: !_isLoading, // 로딩 중에는 비활성화
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(
@@ -332,5 +339,42 @@ class _PlaySummaryDetailPageState extends State<PlaySummaryDetailPage> {
         ),
       ),
     );
+  }
+
+  String translateEmoji(BuildContext context, String key) {
+    switch (key) {
+      case "최상":
+        return AppLocalizations.of(context)!.excellent;
+      case "중상":
+        return AppLocalizations.of(context)!.good;
+      case "보통":
+        return AppLocalizations.of(context)!.average;
+      case "중하":
+        return AppLocalizations.of(context)!.belowAverage;
+      case "최하":
+        return AppLocalizations.of(context)!.poor;
+      default:
+        return key;
+    }
+  }
+
+  String translate(BuildContext context, String key) {
+    switch (key) {
+      case "다트라이브":
+        return AppLocalizations.of(context)!.dartlive;
+      case "피닉스":
+        return AppLocalizations.of(context)!.phoenix;
+      case "그란보드":
+        return AppLocalizations.of(context)!.granboard;
+      case "홈보드":
+        return AppLocalizations.of(context)!.homeboard;
+      default:
+        return key;
+    }
+  }
+
+  String getFormattedDate(BuildContext context, DateTime date) {
+    var locale = Localizations.localeOf(context).toString();
+    return intl.DateFormat.yMMMMd(locale).format(date); // 로케일에 맞는 날짜 형식
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:logger/logger.dart';
 
 class NicknameEditPage extends StatefulWidget {
   const NicknameEditPage({super.key});
@@ -13,6 +15,7 @@ class NicknameEditPage extends StatefulWidget {
 class _NicknameEditPageState extends State<NicknameEditPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _nicknameController = TextEditingController();
+  final Logger _logger = Logger();
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -20,9 +23,9 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
   void initState() {
     super.initState();
     _loadNickname();
+    _logger.i("NicknameEditPage initState called");
   }
 
-  /// Firestore에서 현재 닉네임 가져오기
   Future<void> _loadNickname() async {
     try {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
@@ -34,49 +37,46 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "닉네임을 불러오는 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingNickname}: $e";
         });
       }
+      _logger.e("Error loading nickname: $e");
     }
   }
 
-  /// 닉네임 유효성 검사 (실시간 반영)
   bool _isValidNickname(String nickname) {
-    final invalidChars = RegExp(r"[^a-zA-Z0-9가-힣_]"); // 한글, 영문, 숫자, 밑줄(_) 허용
-    final bannedWords = ["admin", "운영자", "관리자", "fuck", "shit", "욕설"]; // 금지어 예제
-
-    if (nickname.trim().length < 2 || nickname.trim().length > 12) return false;
-    if (invalidChars.hasMatch(nickname)) return false;
-    if (bannedWords.any((word) => nickname.toLowerCase().contains(word))) return false;
-
-    return true;
+    final invalidChars = RegExp(r"[^a-zA-Z0-9가-힣_]");
+    final bannedWords = ["admin", "운영자", "관리자", "fuck", "shit", "욕설"];
+    return nickname.trim().length >= 2 &&
+        nickname.trim().length <= 12 &&
+        !invalidChars.hasMatch(nickname) &&
+        !bannedWords.any((word) => nickname.toLowerCase().contains(word));
   }
 
-  /// Firestore에서 닉네임 중복 체크
   Future<bool> _isNicknameAvailable(String nickname) async {
     try {
       return await _firestoreService.isNicknameUnique(nickname);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("닉네임 중복 확인 중 오류 발생: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorCheckingNickname}: $e")),
         );
       }
+      _logger.e("Error checking nickname availability: $e");
       return false;
     }
   }
 
-  /// 닉네임 저장 기능
   Future<void> _saveNickname() async {
     String newNickname = _nicknameController.text.trim();
 
     if (newNickname.isEmpty) {
-      setState(() => _errorMessage = "닉네임을 입력해주세요!");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.enterNickname);
       return;
     }
 
     if (!_isValidNickname(newNickname)) {
-      setState(() => _errorMessage = "닉네임은 2~12자, 한글/영문/숫자/밑줄(_)만 사용할 수 있습니다.");
+      setState(() => _errorMessage = AppLocalizations.of(context)!.invalidNicknameFormat);
       return;
     }
 
@@ -89,7 +89,7 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     if (!isAvailable) {
       setState(() {
         _isSaving = false;
-        _errorMessage = "이미 사용 중인 닉네임입니다.";
+        _errorMessage = AppLocalizations.of(context)!.nicknameTaken;
       });
       return;
     }
@@ -98,17 +98,19 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
       await _firestoreService.updateUserData({"nickname": newNickname});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("닉네임이 변경되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.nicknameSaved)),
         );
         _nicknameController.clear();
         Navigator.pop(context, newNickname);
       }
+      _logger.i("Nickname saved: $newNickname");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "닉네임 저장 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.saveFailed}: $e";
         });
       }
+      _logger.e("Error saving nickname: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -116,11 +118,10 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     }
   }
 
-  /// 입력 중 실시간 유효성 검사
   void _validateNickname(String value) {
     if (value.isNotEmpty && !_isValidNickname(value)) {
       setState(() {
-        _errorMessage = "닉네임은 2~12자, 한글/영문/숫자/밑줄(_)만 사용할 수 있습니다.";
+        _errorMessage = AppLocalizations.of(context)!.invalidNicknameFormat;
       });
     } else {
       setState(() {
@@ -134,65 +135,70 @@ class _NicknameEditPageState extends State<NicknameEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "닉네임 변경",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
-          ),
+          AppLocalizations.of(context)!.nicknameSettings,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
-        actions: [
-          _isSaving
-              ? Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: CircularProgressIndicator(color: Theme.of(context).colorScheme.onPrimary),
-          )
-              : IconButton(
-            icon: Icon(Icons.check, color: Theme.of(context).appBarTheme.foregroundColor),
-            onPressed: _isSaving ? null : _saveNickname,
-          ),
-        ],
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           child: Column(
             children: [
-              TextField(
-                controller: _nicknameController,
-                maxLength: 12,
-                onChanged: _validateNickname, // 실시간 유효성 검사
-                decoration: InputDecoration(
-                  labelText: "새 닉네임",
-                  labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _nicknameController,
+                    maxLength: 12,
+                    onChanged: _validateNickname,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.newNickname,
+                      labelStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      errorText: _errorMessage,
+                    ),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                   ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                  errorText: _errorMessage,
                 ),
-                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveNickname,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  disabledBackgroundColor: Theme.of(context).disabledColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text(
-                  "저장",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onPrimary,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveNickname,
+                  icon: _isSaving
+                      ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    AppLocalizations.of(context)!.save,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'Play_summary_detail_Page.dart';
 import 'Play_summary_history_Page.dart';
 
 class PlaySummaryPage extends StatefulWidget {
-  const PlaySummaryPage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const PlaySummaryPage({super.key, required this.onLocaleChange});
 
   @override
   State<PlaySummaryPage> createState() => _PlaySummaryPageState();
@@ -50,7 +53,7 @@ class _PlaySummaryPageState extends State<PlaySummaryPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "오늘의 플레이 요약",
+          AppLocalizations.of(context)!.todayPlaySummary, // 다국어 적용
           style: TextStyle(
             color: Theme.of(context).appBarTheme.foregroundColor,
             fontSize: 20,
@@ -92,7 +95,10 @@ class _PlaySummaryPageState extends State<PlaySummaryPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PlaySummaryHistoryPage(selectedDate: selectedDay),
+              builder: (context) => PlaySummaryHistoryPage(
+                selectedDate: selectedDay,
+                onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+              ),
             ),
           ).then((_) {
             // 페이지에서 돌아올 때 요약 데이터 갱신
@@ -103,7 +109,10 @@ class _PlaySummaryPageState extends State<PlaySummaryPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PlaySummaryDetailPage(selectedDate: selectedDay),
+              builder: (context) => PlaySummaryDetailPage(
+                selectedDate: selectedDay,
+                onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+              ),
             ),
           ).then((_) {
             // 페이지에서 돌아올 때 요약 데이터 갱신

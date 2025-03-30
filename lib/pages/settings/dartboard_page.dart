@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firestore_service.dart';
+import 'package:dartschat/generated/app_localizations.dart';
+import 'package:logger/logger.dart';
 
 class DartboardPage extends StatefulWidget {
   const DartboardPage({super.key});
@@ -10,9 +13,10 @@ class DartboardPage extends StatefulWidget {
 
 class _DartboardPageState extends State<DartboardPage> {
   final FirestoreService _firestoreService = FirestoreService();
-  String _selectedDartBoard = "다트라이브";
+  final Logger _logger = Logger();
+  String _selectedDartBoard = "";
   bool _isSaving = false;
-  List<String> _dartBoards = ["다트라이브", "피닉스", "그란보드", "홈보드"];
+  List<String> _dartBoards = [];
   String? _errorMessage;
 
   @override
@@ -20,27 +24,33 @@ class _DartboardPageState extends State<DartboardPage> {
     super.initState();
     _loadDartboard();
     _loadDartboardList();
+    _logger.i("DartboardPage initState called");
   }
 
-  /// Firestore에서 현재 사용자의 다트보드 설정 가져오기
+  @override
+  void dispose() {
+    _logger.i("DartboardPage dispose called");
+    super.dispose();
+  }
+
   Future<void> _loadDartboard() async {
     try {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
       if (userData != null && mounted) {
         setState(() {
-          _selectedDartBoard = userData["dartBoard"] ?? "다트라이브";
+          _selectedDartBoard = userData["dartBoard"] ?? AppLocalizations.of(context)!.dartlive;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "다트보드 설정을 불러오는 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingDartboard}: $e";
         });
       }
+      _logger.e("Error loading dartboard: $e");
     }
   }
 
-  /// Firestore에서 다트보드 목록 불러오기
   Future<void> _loadDartboardList() async {
     try {
       List<String> boards = await _firestoreService.getDartboardList();
@@ -50,19 +60,19 @@ class _DartboardPageState extends State<DartboardPage> {
         });
       } else if (mounted) {
         setState(() {
-          _errorMessage = "다트보드 목록을 불러올 수 없습니다.";
+          _errorMessage = AppLocalizations.of(context)!.noDartboardList;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "다트보드 목록을 불러오는 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.errorLoadingDartboardList}: $e";
         });
       }
+      _logger.e("Error loading dartboard list: $e");
     }
   }
 
-  /// 선택한 다트보드 저장
   Future<void> _saveDartboard() async {
     setState(() {
       _isSaving = true;
@@ -74,16 +84,18 @@ class _DartboardPageState extends State<DartboardPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("다트보드가 변경되었습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.dartboardSaved)),
         );
         Navigator.pop(context, _selectedDartBoard);
       }
+      _logger.i("Dartboard saved: $_selectedDartBoard");
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "다트보드 저장 중 오류가 발생했습니다: $e";
+          _errorMessage = "${AppLocalizations.of(context)!.saveFailed}: $e";
         });
       }
+      _logger.e("Error saving dartboard: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -96,15 +108,12 @@ class _DartboardPageState extends State<DartboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "다트보드 설정",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
-          ),
+          AppLocalizations.of(context)!.dartboardSettings,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
@@ -120,7 +129,7 @@ class _DartboardPageState extends State<DartboardPage> {
                   : _dartBoards.isEmpty
                   ? Center(
                 child: Text(
-                  "다트보드 목록을 불러올 수 없습니다.",
+                  AppLocalizations.of(context)!.noDartboardList,
                   style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                 ),
               )
@@ -131,12 +140,12 @@ class _DartboardPageState extends State<DartboardPage> {
                   String dartBoard = _dartBoards[index];
                   return Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 5,
+                    elevation: 2,
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     color: Theme.of(context).cardColor,
                     child: RadioListTile<String>(
                       title: Text(
-                        dartBoard,
+                        _translateDartBoard(context, dartBoard),
                         style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                       ),
                       value: dartBoard,
@@ -168,22 +177,30 @@ class _DartboardPageState extends State<DartboardPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: _isSaving ? null : _saveDartboard,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSaving
-                      ? CircularProgressIndicator(color: Theme.of(context).colorScheme.onPrimary)
-                      : Text(
-                    "저장하기",
+                  icon: _isSaving
+                      ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    AppLocalizations.of(context)!.save,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -192,5 +209,20 @@ class _DartboardPageState extends State<DartboardPage> {
         ),
       ),
     );
+  }
+
+  String _translateDartBoard(BuildContext context, String board) {
+    switch (board) {
+      case "다트라이브":
+        return AppLocalizations.of(context)!.dartlive;
+      case "피닉스":
+        return AppLocalizations.of(context)!.phoenix;
+      case "그란보드":
+        return AppLocalizations.of(context)!.granboard;
+      case "홈보드":
+        return AppLocalizations.of(context)!.homeboard;
+      default:
+        return board;
+    }
   }
 }

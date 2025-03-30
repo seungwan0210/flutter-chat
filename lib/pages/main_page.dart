@@ -12,9 +12,9 @@ import 'package:logger/logger.dart';
 
 class MainPage extends StatefulWidget {
   final int initialIndex;
-  final void Function(Locale)? onLocaleChange;
+  final void Function(Locale) onLocaleChange; // 필수로 유지
 
-  const MainPage({super.key, this.initialIndex = 0, this.onLocaleChange});
+  const MainPage({super.key, this.initialIndex = 0, required this.onLocaleChange});
 
   @override
   _MainPageState createState() => _MainPageState();
@@ -24,19 +24,23 @@ class _MainPageState extends State<MainPage> {
   late int _selectedIndex;
   final Logger _logger = Logger();
 
-  final List<Widget> _pages = [
-    const HomePage(),
-    const FriendsPage(),
-    const ChatListPage(),
-    const ProfilePage(),
-    const MorePage(),
-  ];
+  late List<Widget> _pages; // late로 선언하여 initState에서 초기화
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _logger.i("MainPage initialized with initialIndex: $_selectedIndex");
+
+    // _pages 리스트를 initState에서 초기화하여 onLocaleChange 전달
+    _pages = [
+      HomePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+      FriendsPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+      ChatListPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+      ProfilePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+      MorePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+    ];
+
     _checkAccountStatus();
   }
 
@@ -54,7 +58,7 @@ class _MainPageState extends State<MainPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                  onLocaleChange: widget.onLocaleChange,
                 ),
               ),
             );
@@ -76,7 +80,7 @@ class _MainPageState extends State<MainPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                  onLocaleChange: widget.onLocaleChange,
                 ),
               ),
             );
@@ -92,7 +96,7 @@ class _MainPageState extends State<MainPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+                  onLocaleChange: widget.onLocaleChange,
                 ),
               ),
             );
@@ -115,7 +119,7 @@ class _MainPageState extends State<MainPage> {
           context,
           MaterialPageRoute(
             builder: (context) => LoginPage(
-              onLocaleChange: widget.onLocaleChange ?? (locale) => _logger.i("Default locale change: $locale"),
+              onLocaleChange: widget.onLocaleChange,
             ),
           ),
         );

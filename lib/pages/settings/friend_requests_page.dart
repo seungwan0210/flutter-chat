@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
 import '../profile_detail_page.dart';
 import '../../services/firestore_service.dart';
-import 'package:dartschat/pages/FullScreenImagePage.dart'; // 최신 FullScreenImagePage 임포트
+import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class FriendRequestsPage extends StatefulWidget {
-  const FriendRequestsPage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const FriendRequestsPage({super.key, required this.onLocaleChange});
 
   @override
   _FriendRequestsPageState createState() => _FriendRequestsPageState();
@@ -32,7 +35,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     }, onError: (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 요청 목록을 불러오는 중 오류 발생: $error")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorLoadingFriendRequests}: $error")),
         );
       }
     });
@@ -50,17 +53,17 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
       await _firestoreService.acceptFriendRequest(userId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구 요청을 승인했습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.friendRequestAccepted)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 요청 승인 중 오류 발생: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorAcceptingFriendRequest}: $e")),
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []});
+        _friendRequests.add({"userId": userId, "nickname": AppLocalizations.of(context)!.unknownUser, "profileImages": []});
       });
     }
   }
@@ -77,17 +80,17 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
       await _firestoreService.declineFriendRequest(userId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("친구 요청을 거절했습니다.")),
+          SnackBar(content: Text(AppLocalizations.of(context)!.friendRequestDeclined)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("친구 요청 거절 중 오류 발생: $e")),
+          SnackBar(content: Text("${AppLocalizations.of(context)!.errorDecliningFriendRequest}: $e")),
         );
       }
       setState(() {
-        _friendRequests.add({"userId": userId, "nickname": "알 수 없는 사용자", "profileImages": []});
+        _friendRequests.add({"userId": userId, "nickname": AppLocalizations.of(context)!.unknownUser, "profileImages": []});
       });
     }
   }
@@ -97,9 +100,9 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "친구 요청",
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.friendRequests, // 다국어 키 사용
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -123,18 +126,18 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return const Center(
+              return Center(
                 child: Text(
-                  "친구 요청 목록을 불러오는 중 오류가 발생했습니다.",
-                  style: TextStyle(color: Colors.redAccent),
+                  AppLocalizations.of(context)!.errorLoadingFriendRequests,
+                  style: const TextStyle(color: Colors.redAccent),
                 ),
               );
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
+              return Center(
                 child: Text(
-                  "받은 친구 요청이 없습니다. 친구를 기다려보세요!",
-                  style: TextStyle(
+                  AppLocalizations.of(context)!.noFriendRequests,
+                  style: const TextStyle(
                     fontSize: 16,
                     color: Colors.white70,
                   ),
@@ -150,7 +153,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
               itemBuilder: (context, index) {
                 final request = friendRequests[index];
                 String userId = request["userId"] ?? "";
-                String nickname = request["nickname"] ?? "알 수 없는 사용자";
+                String nickname = request["nickname"] ?? AppLocalizations.of(context)!.unknownUser;
                 List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(request["profileImages"] ?? []);
                 String? mainProfileImage = request["mainProfileImage"];
 
@@ -188,6 +191,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                             nickname: nickname,
                             profileImages: profileImages,
                             isCurrentUser: false,
+                            onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
                           ),
                         ),
                       );
@@ -242,7 +246,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
           onBackgroundImageError: mainProfileImage != null && mainProfileImage.isNotEmpty
               ? (exception, stackTrace) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("이미지 로드 오류: $exception")),
+              SnackBar(content: Text("${AppLocalizations.of(context)!.imageLoadError}: $exception")),
             );
             return null;
           }

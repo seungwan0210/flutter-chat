@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dartschat/generated/app_localizations.dart'; // 언어팩 임포트
 
 class ProfileSettingsPage extends StatefulWidget {
-  const ProfileSettingsPage({super.key});
+  final void Function(Locale) onLocaleChange;
+
+  const ProfileSettingsPage({super.key, required this.onLocaleChange});
 
   @override
   _ProfileSettingsPageState createState() => _ProfileSettingsPageState();
@@ -21,7 +24,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     _loadOfflineMode();
   }
 
-  /// Firestore에서 현재 유저의 isOfflineMode 값을 가져옴
   Future<void> _loadOfflineMode() async {
     try {
       String currentUserId = _auth.currentUser!.uid;
@@ -35,7 +37,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("오프라인 모드 설정 로드 중 오류: $e")),
+        SnackBar(content: Text("${AppLocalizations.of(context)!.errorLoadingOfflineMode}: $e")),
       );
       setState(() {
         _isLoading = false;
@@ -43,7 +45,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     }
   }
 
-  /// Firestore에 isOfflineMode 값을 업데이트
   Future<void> _updateOfflineMode(bool newValue) async {
     try {
       String currentUserId = _auth.currentUser!.uid;
@@ -51,22 +52,24 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         "isOfflineMode": newValue,
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("설정이 저장되었습니다.")),
+        SnackBar(content: Text(AppLocalizations.of(context)!.settingsSaved)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("오프라인 모드 설정 저장 중 오류: $e")),
+        SnackBar(content: Text("${AppLocalizations.of(context)!.errorSavingOfflineMode}: $e")),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    Locale currentLocale = Localizations.localeOf(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "프로필 설정",
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          AppLocalizations.of(context)!.profileSettings,
+          style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: Colors.black,
         elevation: 0,
@@ -79,17 +82,30 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "오프라인 모드",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+            // 오프라인 모드 설정
+            Text(
+              AppLocalizations.of(context)!.offlineMode,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "오프라인 모드 활성화",
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppLocalizations.of(context)!.enableOfflineMode,
+                        style: const TextStyle(fontSize: 14, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppLocalizations.of(context)!.offlineModeDescription,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ),
                 Switch(
                   value: _isOfflineMode,
@@ -103,10 +119,64 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            // 언어 설정
+            Text(
+              AppLocalizations.of(context)!.languageSettings,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
             const SizedBox(height: 8),
-            const Text(
-              "오프라인 모드를 활성화하면 다른 사용자가 나를 오프라인 상태로 보게 됩니다.",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context)!.languageSettingsDescription,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<Locale>(
+                    value: AppLocalizations.supportedLocales.firstWhere(
+                          (locale) =>
+                      locale.languageCode == currentLocale.languageCode &&
+                          (locale.countryCode == currentLocale.countryCode ||
+                              (locale.countryCode == null && currentLocale.countryCode == '')),
+                      orElse: () => AppLocalizations.supportedLocales.first,
+                    ),
+                    items: AppLocalizations.supportedLocales.map((locale) {
+                      return DropdownMenuItem<Locale>(
+                        value: locale,
+                        child: Text(
+                          {
+                            'ko': '한국어',
+                            'en': 'English',
+                            'ja': '日本語',
+                            'zh': '中文 (简体)',
+                            'zh_TW': '中文 (繁體)',
+                          }[locale.toString()] ?? locale.toString(),
+                          style: const TextStyle(fontSize: 14, color: Colors.black54),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (Locale? newLocale) {
+                      if (newLocale != null) {
+                        widget.onLocaleChange(newLocale);
+                        setState(() {}); // UI 갱신 강제
+                      }
+                    },
+                    dropdownColor: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    elevation: 2,
+                    style: const TextStyle(color: Colors.black54),
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

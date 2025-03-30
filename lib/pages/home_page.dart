@@ -11,7 +11,9 @@ import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+
+  const HomePage({super.key, required this.onLocaleChange});
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -134,7 +136,9 @@ class _HomePageState extends State<HomePage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const UserSearchPage()),
+                MaterialPageRoute(
+                  builder: (context) => UserSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                ),
               );
             },
           ),
@@ -242,6 +246,7 @@ class _HomePageState extends State<HomePage> {
               nickname: nickname,
               profileImages: profileImages,
               isCurrentUser: true,
+              onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
             ),
           ),
         );
@@ -374,6 +379,7 @@ class _HomePageState extends State<HomePage> {
                 nickname: userData["nickname"] ?? AppLocalizations.of(context)!.unknownUser,
                 profileImages: profileImages,
                 isCurrentUser: user.id == currentUserId,
+                onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
               ),
             ),
           );
@@ -398,7 +404,7 @@ class _HomePageState extends State<HomePage> {
                     "phoenix",
                     "granboard",
                     "homeboard",
-                  ], // 지역화 키로 변경
+                  ],
                       (newValue) => setState(() => selectedBoardFilter = newValue!),
                 ),
               ),
