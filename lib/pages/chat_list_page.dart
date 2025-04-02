@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:dartschat/generated/app_localizations.dart'; // 다국어 지원 추가
+import 'package:dartschat/generated/app_localizations.dart';
 import 'chat_page.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:logger/logger.dart';
 
 class ChatListPage extends StatefulWidget {
-  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+  final void Function(Locale) onLocaleChange;
 
   const ChatListPage({super.key, required this.onLocaleChange});
 
@@ -19,18 +20,10 @@ class _ChatListPageState extends State<ChatListPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
+  final Logger _logger = Logger();
   bool _isSearching = false;
   String _searchQuery = '';
-  List<QueryDocumentSnapshot> _filteredChatRooms = [];
-
-  /// Firestore에서 사용자가 참여한 모든 채팅방 가져오기
-  Stream<QuerySnapshot> _getChatRooms() {
-    return FirebaseFirestore.instance
-        .collection("chats")
-        .where("participants", arrayContains: _auth.currentUser!.uid)
-        .orderBy("timestamp", descending: true)
-        .snapshots();
-  }
+  List<Map<String, dynamic>> _filteredChatRooms = [];
 
   @override
   void initState() {
@@ -41,9 +34,9 @@ class _ChatListPageState extends State<ChatListPage> {
       });
       _filterChatRooms();
     });
+    _createTestChatRoom();
   }
 
-  /// 채팅방 필터링
   Future<void> _filterChatRooms() async {
     if (_searchQuery.isEmpty) {
       setState(() {
@@ -56,19 +49,23 @@ class _ChatListPageState extends State<ChatListPage> {
       QuerySnapshot snapshot = await FirebaseFirestore.instance
           .collection("chats")
           .where("participants", arrayContains: _auth.currentUser!.uid)
-          .orderBy("timestamp", descending: true)
+          .orderBy("lastMessageTime", descending: true)
           .get();
 
-      List<QueryDocumentSnapshot> chatRooms = snapshot.docs;
-      List<QueryDocumentSnapshot> filtered = [];
+      List<Map<String, dynamic>> chatRooms = snapshot.docs.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        return {
+          'chatId': doc.id,
+          'participants': List<String>.from(data['participants']),
+          'lastMessage': data['lastMessage'] ?? '',
+          'lastMessageTime': data['lastMessageTime'],
+          'unreadCount': data['unreadCount'] ?? {},
+        };
+      }).toList();
 
+      List<Map<String, dynamic>> filtered = [];
       for (var chatRoom in chatRooms) {
-        List participants = chatRoom["participants"];
-        String otherUserId = participants.firstWhere(
-              (id) => id != _auth.currentUser!.uid,
-          orElse: () => "",
-        );
-
+        String otherUserId = chatRoom['participants'].firstWhere((id) => id != _auth.currentUser!.uid);
         DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection("users").doc(otherUserId).get();
         if (!userSnapshot.exists) continue;
 
@@ -83,6 +80,7 @@ class _ChatListPageState extends State<ChatListPage> {
         _filteredChatRooms = filtered;
       });
     } catch (e) {
+      _logger.e("채팅방 필터링 중 오류: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("${AppLocalizations.of(context)!.errorSearching}: $e")),
       );
@@ -90,6 +88,19 @@ class _ChatListPageState extends State<ChatListPage> {
         _filteredChatRooms = [];
       });
     }
+  }
+
+  void _createTestChatRoom() async {
+    String currentUserId = _auth.currentUser!.uid;
+    String testUserId = "testUserId"; // 실제 다른 사용자 UID로 교체
+    String chatId = _firestoreService.generateChatId(currentUserId, testUserId);
+    await FirebaseFirestore.instance.collection("chats").doc(chatId).set({
+      "participants": [currentUserId, testUserId],
+      "lastMessage": "테스트 메시지",
+      "lastMessageTime": FieldValue.serverTimestamp(),
+      "unreadCount": {currentUserId: 0, testUserId: 1},
+    });
+    _logger.i("테스트 채팅방 생성됨: $chatId");
   }
 
   @override
@@ -156,16 +167,17 @@ class _ChatListPageState extends State<ChatListPage> {
       ),
       body: Column(
         children: [
-          /// 최상단 배너 추가
           _buildBanner(),
-
-          /// 채팅 목록 표시
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _getChatRooms(),
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _firestoreService.getChatList().distinct(), // 중복 업데이트 방지
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData) {
+                  _logger.i("채팅 리스트 데이터 로딩 중");
+                  return const Center(child: CircularProgressIndicator());
+                }
                 if (snapshot.hasError) {
+                  _logger.e("채팅 리스트 로드 오류: ${snapshot.error}");
                   return Center(
                     child: Text(
                       AppLocalizations.of(context)!.errorLoadingChatList,
@@ -174,9 +186,11 @@ class _ChatListPageState extends State<ChatListPage> {
                   );
                 }
 
-                var chatRooms = snapshot.data!.docs;
+                var chatRooms = snapshot.data!;
+                _logger.i("총 채팅방 수: ${chatRooms.length}");
 
                 if (chatRooms.isEmpty) {
+                  _logger.i("채팅방 없음");
                   return Center(
                     child: Text(
                       AppLocalizations.of(context)!.noChatRooms,
@@ -185,25 +199,21 @@ class _ChatListPageState extends State<ChatListPage> {
                   );
                 }
 
-                // 검색 결과가 있으면 필터링된 리스트 사용, 없으면 전체 리스트 사용
-                List<QueryDocumentSnapshot> displayChatRooms = _searchQuery.isEmpty ? chatRooms : _filteredChatRooms;
+                List<Map<String, dynamic>> displayChatRooms = _searchQuery.isEmpty ? chatRooms : _filteredChatRooms;
+                _logger.i("표시할 채팅방 수: ${displayChatRooms.length}");
 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   itemCount: displayChatRooms.length,
                   itemBuilder: (context, index) {
                     var chatRoom = displayChatRooms[index];
-                    List participants = chatRoom["participants"];
-                    Timestamp timestamp = chatRoom["timestamp"];
-                    DateTime time = timestamp.toDate();
+                    String chatId = chatRoom['chatId'];
+                    String otherUserId = chatRoom['otherUserId'];
+                    String lastMessage = chatRoom['lastMessage'];
+                    int unreadCount = chatRoom['unreadCount'];
+                    Timestamp? timestamp = chatRoom['lastMessageTime'];
+                    DateTime time = timestamp?.toDate() ?? DateTime.now();
 
-                    // 상대방 ID 찾기 (내 ID 제외)
-                    String otherUserId = participants.firstWhere(
-                          (id) => id != _auth.currentUser!.uid,
-                      orElse: () => "",
-                    );
-
-                    // Firestore에서 상대방 데이터 가져오기 (Stream 사용)
                     return StreamBuilder<DocumentSnapshot>(
                       stream: FirebaseFirestore.instance.collection("users").doc(otherUserId).snapshots(),
                       builder: (context, userSnapshot) {
@@ -215,32 +225,16 @@ class _ChatListPageState extends State<ChatListPage> {
                         List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
                         String mainProfileImage = userData["mainProfileImage"] ?? (profileImages.isNotEmpty ? profileImages.last['url'] : "");
 
-                        // messageReceiveSetting 처리
-                        String messageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+                        String messageSetting = userData["messageReceiveSetting"] ?? "all_allowed";
 
-                        // 친구 목록 확인
                         bool isFriend = false;
                         if (userData.containsKey("friends")) {
                           var friends = userData["friends"] as Map<String, dynamic>?;
                           isFriend = friends != null && friends.containsKey(_auth.currentUser!.uid);
                         }
 
-                        // "메시지 차단" 설정된 사용자는 리스트에서 숨김
-                        if (messageSetting == AppLocalizations.of(context)!.messageBlocked) {
-                          return const SizedBox();
-                        }
-
-                        // "친구만 허용" 설정 + 내가 친구가 아닐 경우 숨김
-                        if (messageSetting == AppLocalizations.of(context)!.friendsOnly && !isFriend) {
-                          return const SizedBox();
-                        }
-
-                        // lastMessage 처리
-                        String lastMessage = AppLocalizations.of(context)!.startChat;
-                        var chatData = chatRoom.data() as Map<String, dynamic>;
-                        if (chatData.containsKey('lastMessage')) {
-                          lastMessage = chatData['lastMessage'] as String;
-                        }
+                        if (messageSetting == "messageBlocked") return const SizedBox();
+                        if (messageSetting == "friendsOnly" && !isFriend) return const SizedBox();
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -289,7 +283,7 @@ class _ChatListPageState extends State<ChatListPage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              lastMessage,
+                              lastMessage.isEmpty ? AppLocalizations.of(context)!.startChat : lastMessage,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -297,25 +291,41 @@ class _ChatListPageState extends State<ChatListPage> {
                                 color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54,
                               ),
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  _formatDate(time),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54,
-                                  ),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _formatDate(time),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54,
+                                      ),
+                                    ),
+                                    Text(
+                                      _formatTime(time),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  _formatTime(time),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54,
+                                if (unreadCount > 0) ...[
+                                  const SizedBox(width: 12), // 간격 조정
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: Colors.red,
+                                    child: Text(
+                                      '$unreadCount',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                             onTap: () {
@@ -323,15 +333,17 @@ class _ChatListPageState extends State<ChatListPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => ChatPage(
-                                    chatRoomId: chatRoom.id,
+                                    chatRoomId: chatId,
                                     chatPartnerImage: mainProfileImage,
                                     chatPartnerName: otherUserName,
                                     receiverId: otherUserId,
                                     receiverName: otherUserName,
-                                    onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+                                    onLocaleChange: widget.onLocaleChange,
                                   ),
                                 ),
-                              );
+                              ).then((_) {
+                                setState(() {}); // 새로고침
+                              });
                             },
                           ),
                         );
@@ -347,7 +359,6 @@ class _ChatListPageState extends State<ChatListPage> {
     );
   }
 
-  /// 날짜 포맷 (오늘은 "오늘", 어제는 "어제", 나머지는 yyyy.MM.dd)
   String _formatDate(DateTime time) {
     DateTime now = DateTime.now();
     if (time.year == now.year && time.month == now.month && time.day == now.day) {
@@ -359,7 +370,6 @@ class _ChatListPageState extends State<ChatListPage> {
     }
   }
 
-  /// 시간 포맷 (hh:mm AM/PM)
   String _formatTime(DateTime time) {
     String period = time.hour < 12 ? AppLocalizations.of(context)!.am : AppLocalizations.of(context)!.pm;
     int hour = time.hour % 12;
@@ -367,7 +377,6 @@ class _ChatListPageState extends State<ChatListPage> {
     return "$period $hour:${time.minute.toString().padLeft(2, '0')}";
   }
 
-  /// 최상단 배너 추가
   Widget _buildBanner() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

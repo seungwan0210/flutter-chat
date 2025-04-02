@@ -103,7 +103,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'Darts Chat'**
+  /// **'DartsChat'**
   String get appTitle;
 
   /// No description provided for @home.
@@ -169,13 +169,13 @@ abstract class AppLocalizations {
   /// No description provided for @wrongPassword.
   ///
   /// In en, this message translates to:
-  /// **'Password is incorrect.'**
+  /// **'Incorrect password.'**
   String get wrongPassword;
 
   /// No description provided for @invalidEmail.
   ///
   /// In en, this message translates to:
-  /// **'Email format is incorrect.'**
+  /// **'Invalid email format.'**
   String get invalidEmail;
 
   /// No description provided for @userDisabled.
@@ -319,7 +319,7 @@ abstract class AppLocalizations {
   /// No description provided for @dartlive.
   ///
   /// In en, this message translates to:
-  /// **'Dartslive'**
+  /// **'Dartlive'**
   String get dartlive;
 
   /// No description provided for @phoenix.
@@ -343,7 +343,7 @@ abstract class AppLocalizations {
   /// No description provided for @all_allowed.
   ///
   /// In en, this message translates to:
-  /// **'Everyone'**
+  /// **'All People'**
   String get all_allowed;
 
   /// No description provided for @favorites.
@@ -355,19 +355,19 @@ abstract class AppLocalizations {
   /// No description provided for @noFriendsInThisStatus.
   ///
   /// In en, this message translates to:
-  /// **'There are no friends in this status currently.'**
+  /// **'No friends in this status currently.'**
   String get noFriendsInThisStatus;
 
   /// No description provided for @noFriendsAdded.
   ///
   /// In en, this message translates to:
-  /// **'No friends have been added yet.'**
+  /// **'No friends added yet.'**
   String get noFriendsAdded;
 
   /// No description provided for @goAddFriends.
   ///
   /// In en, this message translates to:
-  /// **'Go add friends'**
+  /// **'Go Add Friends'**
   String get goAddFriends;
 
   /// No description provided for @loading.
@@ -457,13 +457,13 @@ abstract class AppLocalizations {
   /// No description provided for @errorTogglingBlock.
   ///
   /// In en, this message translates to:
-  /// **'Error occurred while toggling block/unblock'**
+  /// **'Error occurred while blocking/unblocking'**
   String get errorTogglingBlock;
 
   /// No description provided for @blockedUser.
   ///
   /// In en, this message translates to:
-  /// **'Blocked user.'**
+  /// **'Blocked User'**
   String get blockedUser;
 
   /// No description provided for @removeFriend.
@@ -529,7 +529,7 @@ abstract class AppLocalizations {
   /// No description provided for @errorLoadingBlockedStatus.
   ///
   /// In en, this message translates to:
-  /// **'Error loading blocked status'**
+  /// **'Error loading block status'**
   String get errorLoadingBlockedStatus;
 
   /// No description provided for @notRegistered.
@@ -571,7 +571,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmRemoveFriend.
   ///
   /// In en, this message translates to:
-  /// **'Do you want to remove this friend?'**
+  /// **'Are you sure you want to remove this friend?'**
   String get confirmRemoveFriend;
 
   /// No description provided for @blockUser.
@@ -583,7 +583,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmBlockUser.
   ///
   /// In en, this message translates to:
-  /// **'Do you want to block this user? Blocking will also remove the friend relationship.'**
+  /// **'Are you sure you want to block this user? Blocking will also remove the friend relationship.'**
   String get confirmBlockUser;
 
   /// No description provided for @errorBlockingFriend.
@@ -601,7 +601,7 @@ abstract class AppLocalizations {
   /// No description provided for @dartBoardLabel.
   ///
   /// In en, this message translates to:
-  /// **'Dart Board'**
+  /// **'Dartboard'**
   String get dartBoardLabel;
 
   /// No description provided for @dartBoard.
@@ -625,7 +625,7 @@ abstract class AppLocalizations {
   /// No description provided for @offlineModeDescription.
   ///
   /// In en, this message translates to:
-  /// **'When offline mode is enabled, other users will see me as offline.'**
+  /// **'When offline mode is enabled, other users will see you as offline.'**
   String get offlineModeDescription;
 
   /// No description provided for @settingsSaved.
@@ -667,7 +667,7 @@ abstract class AppLocalizations {
   /// No description provided for @emailAlreadyInUse.
   ///
   /// In en, this message translates to:
-  /// **'Email is already in use.'**
+  /// **'This email is already in use.'**
   String get emailAlreadyInUse;
 
   /// No description provided for @weakPassword.
@@ -679,13 +679,13 @@ abstract class AppLocalizations {
   /// No description provided for @signUpFailed.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up Failed'**
+  /// **'Sign-up failed'**
   String get signUpFailed;
 
   /// No description provided for @haveAccountLogin.
   ///
   /// In en, this message translates to:
-  /// **'Already have an account? Log in'**
+  /// **'Already have an account? Login'**
   String get haveAccountLogin;
 
   /// No description provided for @friendSearch.
@@ -709,7 +709,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
-  /// **'Nickname / Home Shop Search'**
+  /// **'Search by nickname / home shop'**
   String get searchHint;
 
   /// No description provided for @friendRequests.
@@ -721,7 +721,7 @@ abstract class AppLocalizations {
   /// No description provided for @noFriendRequests.
   ///
   /// In en, this message translates to:
-  /// **'No friend requests received. Wait for friends!'**
+  /// **'No friend requests received. Wait for friends to reach out!'**
   String get noFriendRequests;
 
   /// No description provided for @friendRequestAccepted.
@@ -757,7 +757,7 @@ abstract class AppLocalizations {
   /// No description provided for @errorLoadingFriendRequests.
   ///
   /// In en, this message translates to:
-  /// **'Error occurred while loading friend request list'**
+  /// **'Error occurred while loading friend requests'**
   String get errorLoadingFriendRequests;
 
   /// No description provided for @cannotSendMessage.
@@ -769,7 +769,7 @@ abstract class AppLocalizations {
   /// No description provided for @friendsOnlyMessage.
   ///
   /// In en, this message translates to:
-  /// **'Only friends can send messages.'**
+  /// **'This user only allows messages from friends.'**
   String get friendsOnlyMessage;
 
   /// No description provided for @errorSendingMessage.
@@ -793,19 +793,19 @@ abstract class AppLocalizations {
   /// No description provided for @searchMessages.
   ///
   /// In en, this message translates to:
-  /// **'Search conversation content'**
+  /// **'Search Messages'**
   String get searchMessages;
 
   /// No description provided for @enterMessage.
   ///
   /// In en, this message translates to:
-  /// **'Enter message'**
+  /// **'Enter Message'**
   String get enterMessage;
 
   /// No description provided for @messageBlocked.
   ///
   /// In en, this message translates to:
-  /// **'Message blocked'**
+  /// **'Block Messages'**
   String get messageBlocked;
 
   /// No description provided for @friendsOnly.
@@ -847,13 +847,13 @@ abstract class AppLocalizations {
   /// No description provided for @startChat.
   ///
   /// In en, this message translates to:
-  /// **'Start a conversation'**
+  /// **'Start a chat'**
   String get startChat;
 
   /// No description provided for @searchNickname.
   ///
   /// In en, this message translates to:
-  /// **'Search nickname'**
+  /// **'Search Nickname'**
   String get searchNickname;
 
   /// No description provided for @yesterday.
@@ -871,7 +871,7 @@ abstract class AppLocalizations {
   /// No description provided for @comingSoon.
   ///
   /// In en, this message translates to:
-  /// **'Coming soon in a future update.'**
+  /// **'Coming Soon'**
   String get comingSoon;
 
   /// No description provided for @tournamentInfo.
@@ -1033,14 +1033,20 @@ abstract class AppLocalizations {
   /// No description provided for @loadingDartsCircle.
   ///
   /// In en, this message translates to:
-  /// **'Darts Circle Loading...'**
+  /// **'Loading Darts Circle...'**
   String get loadingDartsCircle;
 
   /// No description provided for @errorLoadingProfile.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading profile information.'**
+  /// **'Error occurred while loading profile info.'**
   String get errorLoadingProfile;
+
+  /// No description provided for @nickname.
+  ///
+  /// In en, this message translates to:
+  /// **'Nickname'**
+  String get nickname;
 
   /// No description provided for @blockManagement.
   ///
@@ -1051,7 +1057,7 @@ abstract class AppLocalizations {
   /// No description provided for @noBlockedUsers.
   ///
   /// In en, this message translates to:
-  /// **'There are no blocked users.'**
+  /// **'No blocked users.'**
   String get noBlockedUsers;
 
   /// No description provided for @friendManagement.
@@ -1069,43 +1075,43 @@ abstract class AppLocalizations {
   /// No description provided for @errorLoadingDartboard.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading dartboard settings:'**
+  /// **'Error occurred while loading dartboard settings:'**
   String get errorLoadingDartboard;
 
   /// No description provided for @noDartboardList.
   ///
   /// In en, this message translates to:
-  /// **'Unable to load dartboard list.'**
+  /// **'Cannot load dartboard list.'**
   String get noDartboardList;
 
   /// No description provided for @errorLoadingDartboardList.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading dartboard list:'**
+  /// **'Error occurred while loading dartboard list:'**
   String get errorLoadingDartboardList;
 
   /// No description provided for @dartboardSaved.
   ///
   /// In en, this message translates to:
-  /// **'Dartboard has been updated.'**
+  /// **'Dartboard changed.'**
   String get dartboardSaved;
 
   /// No description provided for @homeShopSettings.
   ///
   /// In en, this message translates to:
-  /// **'Home Shop Settings'**
+  /// **'Change Home Shop'**
   String get homeShopSettings;
 
   /// No description provided for @errorLoadingHomeShop.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading home shop info:'**
+  /// **'Error occurred while loading home shop info:'**
   String get errorLoadingHomeShop;
 
   /// No description provided for @enterHomeShop.
   ///
   /// In en, this message translates to:
-  /// **'Please enter a home shop!'**
+  /// **'Please enter home shop!'**
   String get enterHomeShop;
 
   /// No description provided for @invalidHomeShopLength.
@@ -1117,7 +1123,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeShopSaved.
   ///
   /// In en, this message translates to:
-  /// **'Home shop has been updated.'**
+  /// **'Home shop changed.'**
   String get homeShopSaved;
 
   /// No description provided for @newHomeShop.
@@ -1135,37 +1141,37 @@ abstract class AppLocalizations {
   /// No description provided for @errorLoadingMessageSettings.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading message settings:'**
+  /// **'Error occurred while loading message settings:'**
   String get errorLoadingMessageSettings;
 
   /// No description provided for @messageSettingsSaved.
   ///
   /// In en, this message translates to:
-  /// **'Message receive settings have been updated.'**
+  /// **'Message receive settings changed.'**
   String get messageSettingsSaved;
 
   /// No description provided for @nicknameSettings.
   ///
   /// In en, this message translates to:
-  /// **'Nickname Settings'**
+  /// **'Change Nickname'**
   String get nicknameSettings;
 
   /// No description provided for @errorLoadingNickname.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading nickname:'**
+  /// **'Error occurred while loading nickname:'**
   String get errorLoadingNickname;
 
   /// No description provided for @enterNickname.
   ///
   /// In en, this message translates to:
-  /// **'Please enter a nickname!'**
+  /// **'Please enter nickname!'**
   String get enterNickname;
 
   /// No description provided for @invalidNicknameFormat.
   ///
   /// In en, this message translates to:
-  /// **'Nickname must be 2-12 characters, using only letters, numbers, or underscore (_).'**
+  /// **'Nickname must be 2-12 characters, using only Korean/English/numbers/underscore(_).'**
   String get invalidNicknameFormat;
 
   /// No description provided for @nicknameTaken.
@@ -1177,13 +1183,13 @@ abstract class AppLocalizations {
   /// No description provided for @errorCheckingNickname.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while checking nickname availability:'**
+  /// **'Error occurred while checking nickname availability:'**
   String get errorCheckingNickname;
 
   /// No description provided for @nicknameSaved.
   ///
   /// In en, this message translates to:
-  /// **'Nickname has been updated.'**
+  /// **'Nickname changed.'**
   String get nicknameSaved;
 
   /// No description provided for @newNickname.
@@ -1201,103 +1207,97 @@ abstract class AppLocalizations {
   /// No description provided for @errorLoadingRating.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading rating value:'**
+  /// **'Error occurred while loading rating value:'**
   String get errorLoadingRating;
 
   /// No description provided for @errorLoadingMaxRating.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading max rating value:'**
+  /// **'Error occurred while loading max rating value:'**
   String get errorLoadingMaxRating;
 
   /// No description provided for @ratingSaved.
   ///
   /// In en, this message translates to:
-  /// **'Rating has been updated.'**
+  /// **'Rating changed.'**
   String get ratingSaved;
-
-  /// No description provided for @nickname.
-  ///
-  /// In en, this message translates to:
-  /// **'nickname'**
-  String get nickname;
 
   /// No description provided for @profileImageSettings.
   ///
   /// In en, this message translates to:
-  /// **'Profile Image Settings'**
+  /// **'Change Profile Image'**
   String get profileImageSettings;
 
   /// No description provided for @errorLoadingProfileImages.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while loading profile images:'**
+  /// **'Error occurred while loading profile images:'**
   String get errorLoadingProfileImages;
 
   /// No description provided for @errorPickingImage.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while picking image:'**
+  /// **'Error occurred while picking image:'**
   String get errorPickingImage;
 
   /// No description provided for @imageUploaded.
   ///
   /// In en, this message translates to:
-  /// **'Image has been uploaded.'**
+  /// **'Image uploaded.'**
   String get imageUploaded;
 
   /// No description provided for @errorUploadingImage.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while uploading image:'**
+  /// **'Error occurred while uploading image:'**
   String get errorUploadingImage;
 
   /// No description provided for @imageDeleted.
   ///
   /// In en, this message translates to:
-  /// **'Image has been deleted.'**
+  /// **'Image deleted.'**
   String get imageDeleted;
 
   /// No description provided for @errorDeletingImage.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while deleting image:'**
+  /// **'Error occurred while deleting image:'**
   String get errorDeletingImage;
 
   /// No description provided for @mainImageSet.
   ///
   /// In en, this message translates to:
-  /// **'Main image has been set.'**
+  /// **'Main image set.'**
   String get mainImageSet;
 
   /// No description provided for @errorSettingMainImage.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while setting main image:'**
+  /// **'Error occurred while setting main image:'**
   String get errorSettingMainImage;
 
   /// No description provided for @defaultImageSet.
   ///
   /// In en, this message translates to:
-  /// **'Set to default image.'**
+  /// **'Set as default image.'**
   String get defaultImageSet;
 
   /// No description provided for @errorSettingDefaultImage.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred while setting default image:'**
+  /// **'Error occurred while setting default image:'**
   String get errorSettingDefaultImage;
 
   /// No description provided for @noImagesUploaded.
   ///
   /// In en, this message translates to:
-  /// **'No images have been uploaded yet.'**
+  /// **'No images uploaded yet.'**
   String get noImagesUploaded;
 
   /// No description provided for @noDate.
   ///
   /// In en, this message translates to:
-  /// **'No date available'**
+  /// **'No date info'**
   String get noDate;
 
   /// No description provided for @defaultImage.
@@ -1315,8 +1315,26 @@ abstract class AppLocalizations {
   /// No description provided for @allMessagesRead.
   ///
   /// In en, this message translates to:
-  /// **'모든 메시지가 읽혔습니다.'**
+  /// **'All messages read.'**
   String get allMessagesRead;
+
+  /// No description provided for @blockedByUser.
+  ///
+  /// In en, this message translates to:
+  /// **'This user has blocked you.'**
+  String get blockedByUser;
+
+  /// No description provided for @messageBlockedByUser.
+  ///
+  /// In en, this message translates to:
+  /// **'This user has blocked messages.'**
+  String get messageBlockedByUser;
+
+  /// No description provided for @settingUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings updated.'**
+  String get settingUpdated;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

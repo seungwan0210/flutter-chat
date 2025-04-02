@@ -14,12 +14,25 @@ class MessageSettingPage extends StatefulWidget {
 class _MessageSettingPageState extends State<MessageSettingPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final Logger _logger = Logger();
-  String _selectedMessageSetting = "";
+  String _selectedMessageSetting = "all"; // 기본값을 `all`로 변경
   bool _isSaving = false;
   bool _isLoaded = false;
   String? _errorMessage;
 
-  final List<String> _messageSettings = [];
+  // 고정 키와 번역 매핑
+  static const List<String> _messageSettingKeys = [
+    "all", // `all_allowed`를 `all`로 변경
+    "friendsOnly",
+    "messageBlocked",
+  ];
+
+  Map<String, String> _getTranslatedSettings(BuildContext context) {
+    return {
+      "all": AppLocalizations.of(context)!.all_allowed,
+      "friendsOnly": AppLocalizations.of(context)!.friendsOnly,
+      "messageBlocked": AppLocalizations.of(context)!.messageBlocked,
+    };
+  }
 
   @override
   void initState() {
@@ -31,7 +44,6 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _initializeMessageSettings();
     _logger.i("MessageSettingPage didChangeDependencies called");
   }
 
@@ -46,7 +58,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
       Map<String, dynamic>? userData = await _firestoreService.getUserData();
       if (userData != null && mounted) {
         setState(() {
-          _selectedMessageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+          _selectedMessageSetting = userData["messageSetting"] ?? "all"; // `messageReceiveSetting`을 `messageSetting`으로 변경
           _isLoaded = true;
         });
       } else if (mounted) {
@@ -66,21 +78,6 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
     }
   }
 
-  void _initializeMessageSettings() {
-    _messageSettings.clear();
-    _messageSettings.addAll([
-      AppLocalizations.of(context)!.all_allowed,
-      AppLocalizations.of(context)!.friendsOnly,
-      AppLocalizations.of(context)!.messageBlocked,
-    ]);
-    // 로케일 변경 시 _selectedMessageSetting이 유효한지 확인
-    if (!_messageSettings.contains(_selectedMessageSetting)) {
-      setState(() {
-        _selectedMessageSetting = _messageSettings[0]; // 기본값으로 설정
-      });
-    }
-  }
-
   Future<void> _saveMessageSetting() async {
     setState(() {
       _isSaving = true;
@@ -89,7 +86,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
 
     try {
       await _firestoreService.updateUserData({
-        "messageReceiveSetting": _selectedMessageSetting,
+        "messageSetting": _selectedMessageSetting, // `messageReceiveSetting`을 `messageSetting`으로 변경
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -114,6 +111,8 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
 
   @override
   Widget build(BuildContext context) {
+    Map<String, String> translatedSettings = _getTranslatedSettings(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -139,9 +138,10 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                itemCount: _messageSettings.length,
+                itemCount: _messageSettingKeys.length,
                 itemBuilder: (context, index) {
-                  String setting = _messageSettings[index];
+                  String settingKey = _messageSettingKeys[index];
+                  String settingDisplay = translatedSettings[settingKey] ?? settingKey;
                   return Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 2,
@@ -149,10 +149,10 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
                     color: Theme.of(context).cardColor,
                     child: RadioListTile<String>(
                       title: Text(
-                        setting,
+                        settingDisplay,
                         style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                       ),
-                      value: setting,
+                      value: settingKey,
                       groupValue: _selectedMessageSetting,
                       onChanged: (value) {
                         if (value != null) {
@@ -162,7 +162,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
                         }
                       },
                       activeColor: Theme.of(context).primaryColor,
-                      selected: _selectedMessageSetting == setting,
+                      selected: _selectedMessageSetting == settingKey,
                       selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.1),
                     ),
                   );
@@ -202,7 +202,7 @@ class _MessageSettingPageState extends State<MessageSettingPage> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
+                    backgroundColor: _isSaving ? Colors.grey : Theme.of(context).primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

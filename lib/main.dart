@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // flutter_app_badger 대신 추가
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,10 +17,9 @@ import 'services/firestore_service.dart';
 final Logger _logger = Logger();
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-// 알림 채널 설정
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'high_importance_channel', // ID (AndroidManifest.xml과 일치)
-  'High Importance Notifications', // 이름
+  'high_importance_channel',
+  'High Importance Notifications',
   description: 'This channel is used for important notifications.',
   importance: Importance.max,
 );
@@ -29,22 +28,31 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   int unreadCount = int.tryParse(message.data['unreadCount'] ?? '0') ?? 0;
-  await flutterLocalNotificationsPlugin.show(
-    0, // 알림 ID (고유해야 함, 여기서는 단순히 0 사용)
-    null, // 백그라운드에서는 제목/내용 표시 생략
-    null,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        channel.id,
-        channel.name,
-        channelDescription: channel.description,
-        importance: Importance.max,
-        priority: Priority.high,
-        number: unreadCount, // 배지 수 설정
+  String senderId = message.data['senderId'] ?? '';
+  String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  String title = message.data['title'] ?? '새 메시지';
+  String body = message.data['body'] ?? '새로운 메시지가 도착했습니다.';
+
+  if (senderId != currentUserId && unreadCount > 0) {
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          number: unreadCount,
+        ),
       ),
-    ),
-  );
-  _logger.i("Background message received: $unreadCount unread messages");
+    );
+    _logger.i("백그라운드 메시지 수신: $unreadCount개의 읽지 않은 메시지, senderId: $senderId");
+  } else {
+    _logger.i("백그라운드 메시지 무시: 내가 보낸 메시지 또는 unreadCount 0, senderId: $senderId");
+  }
 }
 
 void main() async {
@@ -52,6 +60,10 @@ void main() async {
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Firestore 캐싱 비활성화 (테스트용)
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: false,
     );
     await setupPushNotifications();
   } catch (e) {
@@ -61,13 +73,17 @@ void main() async {
   await initializeDateFormatting('ko_KR', null);
   _logger.i("✅ intl 초기화 완료: ko_KR");
 
-  // flutter_local_notifications 초기화
-  const AndroidInitializationSettings initializationSettingsAndroid =
-  AndroidInitializationSettings('@mipmap/ic_launcher');
+  // 로컬 알림 초기화
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
   );
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // 알림 채널 생성
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
 
   FirestoreService firestoreService = FirestoreService();
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -85,17 +101,22 @@ void main() async {
     _logger.i("✅ Firestore 데이터 마이그레이션 이미 실행됨 (새 형식)");
   }
 
+  setupRealtimeListeners(firestoreService);
+
   runApp(const DartChatApp());
 }
 
-// FCM 설정 함수
 Future<void> setupPushNotifications() async {
   FirebaseMessaging messaging = FirebaseMessaging.instance;
 
   // 알림 권한 요청
   NotificationSettings settings = await messaging.requestPermission(
     alert: true,
+    announcement: false,
     badge: true,
+    carPlay: false,
+    criticalAlert: false,
+    provisional: false,
     sound: true,
   );
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
@@ -104,39 +125,151 @@ Future<void> setupPushNotifications() async {
     _logger.w("Push notification permission denied");
   }
 
+  // 포그라운드 메시지 핸들러
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+    int unreadCount = int.tryParse(message.data['unreadCount'] ?? '0') ?? 0;
+    String senderId = message.data['senderId'] ?? '';
+    String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    String title = message.data['title'] ?? '새 메시지';
+    String body = message.data['body'] ?? '새로운 메시지가 도착했습니다.';
+
+    if (senderId != currentUserId && unreadCount > 0) {
+      await flutterLocalNotificationsPlugin.show(
+        0,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.max,
+            priority: Priority.high,
+            number: unreadCount,
+          ),
+        ),
+      );
+      _logger.i("포어그라운드 메시지 수신: $unreadCount개의 읽지 않은 메시지, senderId: $senderId");
+    } else {
+      _logger.i("포어그라운드 메시지 무시: 내가 보낸 메시지 또는 unreadCount 0, senderId: $senderId");
+    }
+  });
+
   // 백그라운드 메시지 핸들러 설정
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 포그라운드 메시지 처리
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-    int unreadCount = int.tryParse(message.data['unreadCount'] ?? '0') ?? 0;
-    await flutterLocalNotificationsPlugin.show(
-      0, // 알림 ID
-      message.notification?.title, // FCM에서 받은 제목
-      message.notification?.body, // FCM에서 받은 내용
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          importance: Importance.max,
-          priority: Priority.high,
-          number: unreadCount, // 배지 수 설정
-        ),
-      ),
-    );
-    _logger.i("Foreground message received: $unreadCount unread messages");
-  });
-
-  // 앱이 종료된 상태에서 알림 클릭 시 처리
+  // 앱이 알림을 통해 열릴 때 처리
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
     _logger.i("App opened from notification: ${message.data}");
-    // TODO: 채팅 페이지로 이동 로직 추가 가능
   });
 
-  // FCM 토큰 로깅
+  // FCM 토큰 가져오기 및 저장
   String? token = await messaging.getToken();
   _logger.i("FCM Token: $token");
+
+  if (token != null) {
+    String? userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      await FirebaseFirestore.instance.collection("users").doc(userId).update({
+        'fcmToken': token,
+      });
+      _logger.i("FCM token saved for user: $userId");
+    }
+  }
+
+  // FCM 토큰 갱신 시 Firestore 업데이트
+  messaging.onTokenRefresh.listen((newToken) async {
+    String? userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      await FirebaseFirestore.instance.collection("users").doc(userId).update({
+        'fcmToken': newToken,
+      });
+      _logger.i("FCM token refreshed and saved for user: $userId");
+    }
+  });
+}
+
+Future<void> setupRealtimeListeners(FirestoreService firestoreService) async {
+  String? userId = FirebaseAuth.instance.currentUser?.uid;
+  if (userId == null) return;
+
+  // 메시지 실시간 리스너
+  int lastUnreadCount = 0;
+  FirebaseFirestore.instance
+      .collection('chats')
+      .where('participants', arrayContains: userId)
+      .snapshots()
+      .listen((snapshot) async {
+    int totalUnread = await firestoreService.getTotalUnreadCount(userId);
+    bool shouldNotify = false;
+
+    // 변경된 채팅만 확인
+    for (var change in snapshot.docChanges) {
+      if (change.type == DocumentChangeType.modified || change.type == DocumentChangeType.added) {
+        var chatData = change.doc.data() as Map<String, dynamic>;
+        String lastMessageSenderId = chatData['senderId'] ?? '';
+        int unreadCountForUser = chatData['unreadCount']?[userId] ?? 0;
+
+        // 내가 보낸 메시지가 아니고 unreadCount가 증가한 경우에만 알림
+        if (lastMessageSenderId != userId && unreadCountForUser > 0) {
+          shouldNotify = true;
+          break;
+        }
+      }
+    }
+
+    if (shouldNotify && totalUnread > lastUnreadCount && totalUnread > 0) {
+      await flutterLocalNotificationsPlugin.show(
+        0,
+        '새 메시지',
+        '읽지 않은 메시지가 $totalUnread개 있습니다.',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.max,
+            priority: Priority.high,
+            number: totalUnread,
+          ),
+        ),
+      );
+      _logger.i("배지 및 알림 업데이트: $totalUnread개의 읽지 않은 메시지");
+    } else {
+      _logger.i("알림 무시: 내가 보낸 메시지 또는 unreadCount 변동 없음, totalUnread: $totalUnread");
+    }
+    lastUnreadCount = totalUnread;
+  });
+
+  // 친구 요청 실시간 리스너
+  int lastRequestCount = 0;
+  FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('friendRequests')
+      .snapshots()
+      .listen((snapshot) async {
+    int requestCount = snapshot.docs.length;
+    if (requestCount > lastRequestCount && requestCount > 0) {
+      await flutterLocalNotificationsPlugin.show(
+        1,
+        '친구 요청',
+        '새로운 친구 요청이 $requestCount개 있습니다.',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.max,
+            priority: Priority.high,
+            number: requestCount,
+          ),
+        ),
+      );
+      _logger.i("배지 업데이트: $requestCount개의 친구 요청");
+    }
+    lastRequestCount = requestCount;
+  });
 }
 
 class DartChatApp extends StatefulWidget {

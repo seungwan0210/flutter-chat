@@ -7,7 +7,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Darts Chat';
+  String get appTitle => 'DartsChat';
 
   @override
   String get home => 'Home';
@@ -40,10 +40,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userNotFound => 'Email does not exist.';
 
   @override
-  String get wrongPassword => 'Password is incorrect.';
+  String get wrongPassword => 'Incorrect password.';
 
   @override
-  String get invalidEmail => 'Email format is incorrect.';
+  String get invalidEmail => 'Invalid email format.';
 
   @override
   String get userDisabled => 'This account has been disabled.';
@@ -115,7 +115,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get all => 'All';
 
   @override
-  String get dartlive => 'Dartslive';
+  String get dartlive => 'Dartlive';
 
   @override
   String get phoenix => 'Phoenix';
@@ -127,19 +127,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeboard => 'Homeboard';
 
   @override
-  String get all_allowed => 'Everyone';
+  String get all_allowed => 'All People';
 
   @override
   String get favorites => 'Favorites';
 
   @override
-  String get noFriendsInThisStatus => 'There are no friends in this status currently.';
+  String get noFriendsInThisStatus => 'No friends in this status currently.';
 
   @override
-  String get noFriendsAdded => 'No friends have been added yet.';
+  String get noFriendsAdded => 'No friends added yet.';
 
   @override
-  String get goAddFriends => 'Go add friends';
+  String get goAddFriends => 'Go Add Friends';
 
   @override
   String get loading => 'Loading';
@@ -184,10 +184,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get blockReleased => 'Block has been released.';
 
   @override
-  String get errorTogglingBlock => 'Error occurred while toggling block/unblock';
+  String get errorTogglingBlock => 'Error occurred while blocking/unblocking';
 
   @override
-  String get blockedUser => 'Blocked user.';
+  String get blockedUser => 'Blocked User';
 
   @override
   String get removeFriend => 'Remove Friend';
@@ -220,7 +220,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorRemovingFriend => 'Error occurred while removing friend';
 
   @override
-  String get errorLoadingBlockedStatus => 'Error loading blocked status';
+  String get errorLoadingBlockedStatus => 'Error loading block status';
 
   @override
   String get notRegistered => 'Not Registered';
@@ -241,13 +241,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorTogglingFavorite => 'Failed to toggle favorite';
 
   @override
-  String get confirmRemoveFriend => 'Do you want to remove this friend?';
+  String get confirmRemoveFriend => 'Are you sure you want to remove this friend?';
 
   @override
   String get blockUser => 'Block User';
 
   @override
-  String get confirmBlockUser => 'Do you want to block this user? Blocking will also remove the friend relationship.';
+  String get confirmBlockUser => 'Are you sure you want to block this user? Blocking will also remove the friend relationship.';
 
   @override
   String get errorBlockingFriend => 'Failed to block friend';
@@ -256,7 +256,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remove => 'Remove';
 
   @override
-  String get dartBoardLabel => 'Dart Board';
+  String get dartBoardLabel => 'Dartboard';
 
   @override
   String get dartBoard => 'Dart Board';
@@ -268,7 +268,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enableOfflineMode => 'Enable Offline Mode';
 
   @override
-  String get offlineModeDescription => 'When offline mode is enabled, other users will see me as offline.';
+  String get offlineModeDescription => 'When offline mode is enabled, other users will see you as offline.';
 
   @override
   String get settingsSaved => 'Settings saved.';
@@ -289,16 +289,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newUser => 'New User';
 
   @override
-  String get emailAlreadyInUse => 'Email is already in use.';
+  String get emailAlreadyInUse => 'This email is already in use.';
 
   @override
   String get weakPassword => 'Password must be at least 6 characters.';
 
   @override
-  String get signUpFailed => 'Sign Up Failed';
+  String get signUpFailed => 'Sign-up failed';
 
   @override
-  String get haveAccountLogin => 'Already have an account? Log in';
+  String get haveAccountLogin => 'Already have an account? Login';
 
   @override
   String get friendSearch => 'Friend Search';
@@ -310,13 +310,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSearch => 'User Search';
 
   @override
-  String get searchHint => 'Nickname / Home Shop Search';
+  String get searchHint => 'Search by nickname / home shop';
 
   @override
   String get friendRequests => 'Friend Requests';
 
   @override
-  String get noFriendRequests => 'No friend requests received. Wait for friends!';
+  String get noFriendRequests => 'No friend requests received. Wait for friends to reach out!';
 
   @override
   String get friendRequestAccepted => 'Friend request accepted.';
@@ -334,13 +334,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageLoadError => 'Image load error';
 
   @override
-  String get errorLoadingFriendRequests => 'Error occurred while loading friend request list';
+  String get errorLoadingFriendRequests => 'Error occurred while loading friend requests';
 
   @override
   String get cannotSendMessage => 'The other party cannot receive messages.';
 
   @override
-  String get friendsOnlyMessage => 'Only friends can send messages.';
+  String get friendsOnlyMessage => 'This user only allows messages from friends.';
 
   @override
   String get errorSendingMessage => 'Error occurred while sending message';
@@ -352,13 +352,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMessage => '[No Message]';
 
   @override
-  String get searchMessages => 'Search conversation content';
+  String get searchMessages => 'Search Messages';
 
   @override
-  String get enterMessage => 'Enter message';
+  String get enterMessage => 'Enter Message';
 
   @override
-  String get messageBlocked => 'Message blocked';
+  String get messageBlocked => 'Block Messages';
 
   @override
   String get friendsOnly => 'Friends Only';
@@ -379,10 +379,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noChatRooms => 'No chat rooms';
 
   @override
-  String get startChat => 'Start a conversation';
+  String get startChat => 'Start a chat';
 
   @override
-  String get searchNickname => 'Search nickname';
+  String get searchNickname => 'Search Nickname';
 
   @override
   String get yesterday => 'Yesterday';
@@ -391,7 +391,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateScheduled => 'Update Scheduled';
 
   @override
-  String get comingSoon => 'Coming soon in a future update.';
+  String get comingSoon => 'Coming Soon';
 
   @override
   String get tournamentInfo => 'Tournament Info';
@@ -472,16 +472,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noData => 'No Data';
 
   @override
-  String get loadingDartsCircle => 'Darts Circle Loading...';
+  String get loadingDartsCircle => 'Loading Darts Circle...';
 
   @override
-  String get errorLoadingProfile => 'An error occurred while loading profile information.';
+  String get errorLoadingProfile => 'Error occurred while loading profile info.';
+
+  @override
+  String get nickname => 'Nickname';
 
   @override
   String get blockManagement => 'Block Management';
 
   @override
-  String get noBlockedUsers => 'There are no blocked users.';
+  String get noBlockedUsers => 'No blocked users.';
 
   @override
   String get friendManagement => 'Friend Management';
@@ -490,31 +493,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dartboardSettings => 'Dartboard Settings';
 
   @override
-  String get errorLoadingDartboard => 'An error occurred while loading dartboard settings:';
+  String get errorLoadingDartboard => 'Error occurred while loading dartboard settings:';
 
   @override
-  String get noDartboardList => 'Unable to load dartboard list.';
+  String get noDartboardList => 'Cannot load dartboard list.';
 
   @override
-  String get errorLoadingDartboardList => 'An error occurred while loading dartboard list:';
+  String get errorLoadingDartboardList => 'Error occurred while loading dartboard list:';
 
   @override
-  String get dartboardSaved => 'Dartboard has been updated.';
+  String get dartboardSaved => 'Dartboard changed.';
 
   @override
-  String get homeShopSettings => 'Home Shop Settings';
+  String get homeShopSettings => 'Change Home Shop';
 
   @override
-  String get errorLoadingHomeShop => 'An error occurred while loading home shop info:';
+  String get errorLoadingHomeShop => 'Error occurred while loading home shop info:';
 
   @override
-  String get enterHomeShop => 'Please enter a home shop!';
+  String get enterHomeShop => 'Please enter home shop!';
 
   @override
   String get invalidHomeShopLength => 'Home shop must be between 2 and 30 characters.';
 
   @override
-  String get homeShopSaved => 'Home shop has been updated.';
+  String get homeShopSaved => 'Home shop changed.';
 
   @override
   String get newHomeShop => 'New Home Shop';
@@ -523,31 +526,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageSettings => 'Message Receive Settings';
 
   @override
-  String get errorLoadingMessageSettings => 'An error occurred while loading message settings:';
+  String get errorLoadingMessageSettings => 'Error occurred while loading message settings:';
 
   @override
-  String get messageSettingsSaved => 'Message receive settings have been updated.';
+  String get messageSettingsSaved => 'Message receive settings changed.';
 
   @override
-  String get nicknameSettings => 'Nickname Settings';
+  String get nicknameSettings => 'Change Nickname';
 
   @override
-  String get errorLoadingNickname => 'An error occurred while loading nickname:';
+  String get errorLoadingNickname => 'Error occurred while loading nickname:';
 
   @override
-  String get enterNickname => 'Please enter a nickname!';
+  String get enterNickname => 'Please enter nickname!';
 
   @override
-  String get invalidNicknameFormat => 'Nickname must be 2-12 characters, using only letters, numbers, or underscore (_).';
+  String get invalidNicknameFormat => 'Nickname must be 2-12 characters, using only Korean/English/numbers/underscore(_).';
 
   @override
   String get nicknameTaken => 'This nickname is already taken.';
 
   @override
-  String get errorCheckingNickname => 'An error occurred while checking nickname availability:';
+  String get errorCheckingNickname => 'Error occurred while checking nickname availability:';
 
   @override
-  String get nicknameSaved => 'Nickname has been updated.';
+  String get nicknameSaved => 'Nickname changed.';
 
   @override
   String get newNickname => 'New Nickname';
@@ -556,55 +559,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ratingSettings => 'Rating Settings';
 
   @override
-  String get errorLoadingRating => 'An error occurred while loading rating value:';
+  String get errorLoadingRating => 'Error occurred while loading rating value:';
 
   @override
-  String get errorLoadingMaxRating => 'An error occurred while loading max rating value:';
+  String get errorLoadingMaxRating => 'Error occurred while loading max rating value:';
 
   @override
-  String get ratingSaved => 'Rating has been updated.';
+  String get ratingSaved => 'Rating changed.';
 
   @override
-  String get nickname => 'nickname';
+  String get profileImageSettings => 'Change Profile Image';
 
   @override
-  String get profileImageSettings => 'Profile Image Settings';
+  String get errorLoadingProfileImages => 'Error occurred while loading profile images:';
 
   @override
-  String get errorLoadingProfileImages => 'An error occurred while loading profile images:';
+  String get errorPickingImage => 'Error occurred while picking image:';
 
   @override
-  String get errorPickingImage => 'An error occurred while picking image:';
+  String get imageUploaded => 'Image uploaded.';
 
   @override
-  String get imageUploaded => 'Image has been uploaded.';
+  String get errorUploadingImage => 'Error occurred while uploading image:';
 
   @override
-  String get errorUploadingImage => 'An error occurred while uploading image:';
+  String get imageDeleted => 'Image deleted.';
 
   @override
-  String get imageDeleted => 'Image has been deleted.';
+  String get errorDeletingImage => 'Error occurred while deleting image:';
 
   @override
-  String get errorDeletingImage => 'An error occurred while deleting image:';
+  String get mainImageSet => 'Main image set.';
 
   @override
-  String get mainImageSet => 'Main image has been set.';
+  String get errorSettingMainImage => 'Error occurred while setting main image:';
 
   @override
-  String get errorSettingMainImage => 'An error occurred while setting main image:';
+  String get defaultImageSet => 'Set as default image.';
 
   @override
-  String get defaultImageSet => 'Set to default image.';
+  String get errorSettingDefaultImage => 'Error occurred while setting default image:';
 
   @override
-  String get errorSettingDefaultImage => 'An error occurred while setting default image:';
+  String get noImagesUploaded => 'No images uploaded yet.';
 
   @override
-  String get noImagesUploaded => 'No images have been uploaded yet.';
-
-  @override
-  String get noDate => 'No date available';
+  String get noDate => 'No date info';
 
   @override
   String get defaultImage => 'Set Default Image';
@@ -613,5 +613,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addImage => 'Add Image';
 
   @override
-  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
+  String get allMessagesRead => 'All messages read.';
+
+  @override
+  String get blockedByUser => 'This user has blocked you.';
+
+  @override
+  String get messageBlockedByUser => 'This user has blocked messages.';
+
+  @override
+  String get settingUpdated => 'Settings updated.';
 }

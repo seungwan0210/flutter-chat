@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // 다국어 지원 추가
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:logger/logger.dart'; // Logger 추가
+import 'package:logger/logger.dart';
 import 'package:dartschat/generated/app_localizations.dart';
 import 'profile_detail_page.dart';
 import 'UserSearchPage.dart';
@@ -11,7 +11,7 @@ import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class HomePage extends StatefulWidget {
-  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+  final void Function(Locale) onLocaleChange;
 
   const HomePage({super.key, required this.onLocaleChange});
 
@@ -23,8 +23,8 @@ class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
   final Logger _logger = Logger();
-  String selectedBoardFilter = "all"; // 지역화 키로 변경
-  String selectedRatingFilter = "all"; // 지역화 키로 변경
+  String selectedBoardFilter = "all";
+  String selectedRatingFilter = "all";
   static const int MAX_RATING = 30;
 
   Map<String, dynamic>? currentUserData;
@@ -33,7 +33,7 @@ class _HomePageState extends State<HomePage> {
   List<String> ratingOptions = ["all"];
   String _messageSetting = "ALL";
   String _rank = "💀";
-  bool _isPro = false; // isDiamond -> isPro로 변경
+  bool _isPro = false;
 
   @override
   void initState() {
@@ -52,8 +52,8 @@ class _HomePageState extends State<HomePage> {
           if (mounted) {
             setState(() {
               currentUserData = userDoc.data() as Map<String, dynamic>;
-              _messageSetting = currentUserData!["messageReceiveSetting"] ?? "ALL";
-              _isPro = currentUserData!["isPro"] ?? false; // isDiamond -> isPro
+              _messageSetting = currentUserData!["messageSetting"] ?? "all";
+              _isPro = currentUserData!["isPro"] ?? false;
               _rank = _calculateRank(currentUserData!["totalViews"] ?? 0, _isPro);
             });
           }
@@ -77,7 +77,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   String _calculateRank(int totalViews, bool isPro) {
-    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (isPro) return "assets/pro.png";
     if (totalViews >= 20000) return "assets/diamond.png";
     if (totalViews >= 15000) return "assets/emerald.png";
     if (totalViews >= 10000) return "assets/platinum_2.png";
@@ -89,7 +89,7 @@ class _HomePageState extends State<HomePage> {
     if (totalViews >= 800) return "assets/bronze_3.png";
     if (totalViews >= 500) return "assets/bronze_2.png";
     if (totalViews >= 300) return "assets/bronze_1.png";
-    return "💀"; // 300 미만은 해골 이모티콘
+    return "💀";
   }
 
   @override
@@ -137,7 +137,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => UserSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                  builder: (context) => UserSearchPage(onLocaleChange: widget.onLocaleChange),
                 ),
               );
             },
@@ -232,7 +232,7 @@ class _HomePageState extends State<HomePage> {
 
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? "unknown_user";
-    String messageSetting = currentUserData!["messageReceiveSetting"] ?? "all_allowed";
+    String messageSetting = currentUserData!["messageSetting"] ?? "all";
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
     String? mainProfileImage = currentUserData!["mainProfileImage"];
 
@@ -246,7 +246,7 @@ class _HomePageState extends State<HomePage> {
               nickname: nickname,
               profileImages: profileImages,
               isCurrentUser: true,
-              onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+              onLocaleChange: widget.onLocaleChange,
             ),
           ),
         );
@@ -278,7 +278,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
                   Text(
-                    "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
+                    "${AppLocalizations.of(context)!.messageSetting}: ${AppLocalizations.of(context)!.translate(messageSetting)}",
                     style: TextStyle(
                       fontSize: 14,
                       color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -328,10 +328,10 @@ class _HomePageState extends State<HomePage> {
     String currentUserId = auth.currentUser!.uid;
     bool isOnline = user["status"] == "online";
     Map<String, dynamic> userData = user.data() as Map<String, dynamic>;
-    String messageSetting = userData["messageReceiveSetting"] ?? "all_allowed";
+    String messageSetting = userData["messageSetting"] ?? "all";
     int rating = userData["rating"] ?? 0;
     int totalViews = userData["totalViews"] ?? 0;
-    bool isPro = userData["isPro"] ?? false; // isDiamond -> isPro
+    bool isPro = userData["isPro"] ?? false;
     String rank = _calculateRank(totalViews, isPro);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
     String? mainProfileImage = userData["mainProfileImage"];
@@ -361,13 +361,41 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
             ),
             Text(
-              "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
+              "${AppLocalizations.of(context)!.messageSetting}: ${AppLocalizations.of(context)!.translate(messageSetting)}",
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).textTheme.bodyMedium?.color,
               ),
             ),
           ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.message),
+          onPressed: () async {
+            // 메시지 설정에 따라 버튼 동작 제어
+            if (messageSetting == 'messageBlocked') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(AppLocalizations.of(context)!.messageBlockedByUser)),
+              );
+              return;
+            }
+            if (messageSetting == 'friendsOnly') {
+              DocumentSnapshot friendDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.id)
+                  .collection('friends')
+                  .doc(_firestoreService.currentUserId)
+                  .get();
+              if (!friendDoc.exists) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(AppLocalizations.of(context)!.friendsOnlyMessage)),
+                );
+                return;
+              }
+            }
+            _logger.i("Navigating to chat with user: ${user.id}");
+            // Navigator.push(...);
+          },
         ),
         onTap: () {
           _firestoreService.incrementProfileViews(user.id);
@@ -379,7 +407,7 @@ class _HomePageState extends State<HomePage> {
                 nickname: userData["nickname"] ?? AppLocalizations.of(context)!.unknownUser,
                 profileImages: profileImages,
                 isCurrentUser: user.id == currentUserId,
-                onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+                onLocaleChange: widget.onLocaleChange,
               ),
             ),
           );
@@ -565,7 +593,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// AppLocalizations 확장 메서드 추가
 extension AppLocalizationsExtension on AppLocalizations {
   String translate(String key) {
     switch (key) {
@@ -579,8 +606,14 @@ extension AppLocalizationsExtension on AppLocalizations {
         return granboard;
       case "homeboard":
         return homeboard;
+      case "all_allowed":
+        return all_allowed;
+      case "friendsOnly":
+        return friendsOnly;
+      case "messageBlocked":
+        return messageBlocked;
       default:
-        return key; // 기본값으로 키 반환
+        return key;
     }
   }
 }

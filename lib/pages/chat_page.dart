@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:dartschat/generated/app_localizations.dart';
 import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/profile_detail_page.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
+import 'package:logger/logger.dart';
 
 class ChatPage extends StatefulWidget {
   final String chatRoomId;
@@ -35,14 +36,16 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final FirestoreService _firestoreService = FirestoreService();
+  final Logger _logger = Logger();
 
   bool _isSearching = false;
   String _searchQuery = '';
+  bool _isFirstLoad = true;
 
   @override
   void initState() {
     super.initState();
-    _markMessagesAsRead(); // 페이지 로드 시 읽음 처리
+    _markMessagesAsRead();
   }
 
   void _sendMessage() async {
@@ -54,42 +57,53 @@ class _ChatPageState extends State<ChatPage> {
       await _firestoreService.sendMessage(widget.receiverId, messageText);
       _messageController.clear();
       _scrollToBottom();
+      _logger.i("메시지 전송 성공: $messageText");
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "${AppLocalizations.of(context)!.errorSendingMessage}: $e",
-            style: const TextStyle(color: Colors.white),
+      _logger.e("메시지 전송 실패: $e");
+      if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains("이 사용자가 당신을 차단했습니다")) {
+          errorMessage = AppLocalizations.of(context)!.blockedByUser;
+        } else if (errorMessage.contains("이 사용자는 메시지를 차단했습니다")) {
+          errorMessage = AppLocalizations.of(context)!.messageBlockedByUser;
+        } else if (errorMessage.contains("이 사용자는 친구에게만 메시지를 허용합니다")) {
+          errorMessage = AppLocalizations.of(context)!.friendsOnlyMessage;
+        } else {
+          errorMessage = "${AppLocalizations.of(context)!.errorSendingMessage}: $e";
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+        );
+      }
     }
   }
 
   void _markMessagesAsRead() async {
     try {
       await _firestoreService.markMessagesAsRead(widget.chatRoomId);
-      // 읽음 처리 후 배지 업데이트 확인 (선택적 피드백)
-      int unreadCount = await _firestoreService.getTotalUnreadCount(currentUser!.uid); // _getTotalUnreadCount -> getTotalUnreadCount
-      if (unreadCount == 0) {
+      _logger.i("읽음 처리 완료 - chatRoomId: ${widget.chatRoomId}");
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      _logger.e("읽음 처리 실패: $e");
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context)!.allMessagesRead),
-            duration: const Duration(seconds: 1),
+            content: Text(
+              "${AppLocalizations.of(context)!.errorLoadingMessages}: $e",
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "${AppLocalizations.of(context)!.errorLoadingMessages}: $e",
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
     }
   }
 
@@ -201,11 +215,13 @@ class _ChatPageState extends State<ChatPage> {
                   .collection('messages')
                   .orderBy('timestamp', descending: false)
                   .snapshots(),
-              builder: (context, snapshot) {
+              builder: (context, snapshot) { // `snapshot.ConcurrentModificationError`를 `snapshot`으로 수정
                 if (!snapshot.hasData) {
+                  _logger.i("메시지 데이터 로딩 중: chatRoomId: ${widget.chatRoomId}");
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
+                  _logger.e("메시지 로드 실패: ${snapshot.error}, chatRoomId: ${widget.chatRoomId}");
                   return Center(
                     child: Text(
                       AppLocalizations.of(context)!.errorLoadingMessages,
@@ -213,12 +229,15 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   );
                 }
-                var messages = snapshot.data!.docs;
+                var messages = snapshot.data!.docs; // `snapshot` 사용
                 String lastDate = "";
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
+                if (_isFirstLoad && messages.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                    _isFirstLoad = false;
+                  });
+                }
 
                 if (_searchQuery.isNotEmpty) {
                   messages = messages.where((message) {
@@ -228,6 +247,7 @@ class _ChatPageState extends State<ChatPage> {
                   }).toList();
                 }
 
+                _logger.i("메시지 로드 완료: ${messages.length}개 메시지, chatRoomId: ${widget.chatRoomId}");
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
@@ -238,6 +258,7 @@ class _ChatPageState extends State<ChatPage> {
                     Timestamp? timestamp = message['timestamp'];
                     String timeFormatted = _formatTime(timestamp);
                     String dateFormatted = _formatDate(timestamp);
+                    bool isRead = message['isRead'] ?? false;
 
                     bool showDateHeader = lastDate != dateFormatted;
                     if (showDateHeader) {
@@ -265,6 +286,7 @@ class _ChatPageState extends State<ChatPage> {
                               : AppLocalizations.of(context)!.noMessage,
                           isMe,
                           timeFormatted,
+                          isMe && !isRead,
                         ),
                       ],
                     );
@@ -279,7 +301,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildMessageBubble(String message, bool isMe, String time) {
+  Widget _buildMessageBubble(String message, bool isMe, String time, bool showUnreadIndicator) {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -339,8 +361,20 @@ class _ChatPageState extends State<ChatPage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (isMe) ...[
+                    if (showUnreadIndicator)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4, bottom: 4),
+                        child: Text(
+                          "1",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.yellow[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 8, bottom: 4),
                       child: Text(
                         time,
                         style: TextStyle(
@@ -376,12 +410,14 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ),
                   if (!isMe) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 4),
+                      child: Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                        ),
                       ),
                     ),
                   ],

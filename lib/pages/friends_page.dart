@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:logger/logger.dart';
-import 'package:dartschat/generated/app_localizations.dart'; // 언어팩 임포트
+import 'package:dartschat/generated/app_localizations.dart';
 import 'profile_detail_page.dart';
 import 'friend_search_page.dart';
 import 'settings/friend_requests_page.dart';
@@ -14,7 +14,7 @@ import '../../services/firestore_service.dart';
 import 'package:dartschat/pages/FullScreenImagePage.dart';
 
 class FriendsPage extends StatefulWidget {
-  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+  final void Function(Locale) onLocaleChange;
 
   const FriendsPage({super.key, required this.onLocaleChange});
 
@@ -68,7 +68,7 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   String _calculateRank(int totalViews, bool isPro) {
-    if (isPro) return "assets/pro.png"; // isDiamond -> isPro
+    if (isPro) return "assets/pro.png";
     if (totalViews >= 20000) return "assets/diamond.png";
     if (totalViews >= 15000) return "assets/emerald.png";
     if (totalViews >= 10000) return "assets/platinum_2.png";
@@ -242,9 +242,9 @@ class _FriendsPageState extends State<FriendsPage> {
 
     bool isOnline = currentUserData!["status"] == "online";
     String nickname = currentUserData!["nickname"] ?? AppLocalizations.of(context)!.unknownUser;
-    String messageSetting = currentUserData!["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+    String messageSetting = currentUserData!["messageSetting"] ?? "all";
     int totalViews = currentUserData!["totalViews"] ?? 0;
-    bool isPro = currentUserData!["isPro"] ?? false; // isDiamond -> isPro
+    bool isPro = currentUserData!["isPro"] ?? false;
     String rank = _calculateRank(totalViews, isPro);
     List<Map<String, dynamic>> profileImages = _firestoreService.sanitizeProfileImages(currentUserData!["profileImages"] ?? []);
     String? mainProfileImage = currentUserData!["mainProfileImage"];
@@ -259,7 +259,7 @@ class _FriendsPageState extends State<FriendsPage> {
               nickname: nickname,
               profileImages: profileImages,
               isCurrentUser: true,
-              onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+              onLocaleChange: widget.onLocaleChange,
             ),
           ),
         );
@@ -287,7 +287,7 @@ class _FriendsPageState extends State<FriendsPage> {
                     style: const TextStyle(color: Colors.black54),
                   ),
                   Text(
-                    "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
+                    "${AppLocalizations.of(context)!.messageSetting}: ${AppLocalizations.of(context)!.translate(messageSetting)}",
                     style: const TextStyle(fontSize: 14, color: Colors.black54),
                   ),
                 ],
@@ -335,10 +335,10 @@ class _FriendsPageState extends State<FriendsPage> {
               String homeShop = friendData["homeShop"] ?? AppLocalizations.of(context)!.none;
               String dartBoard = friendData["dartBoard"] ?? AppLocalizations.of(context)!.none;
               int rating = friendData["rating"] ?? 0;
-              String messageSetting = friendData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+              String messageSetting = friendData["messageSetting"] ?? "all";
               bool isOnline = friendData["status"] == "online";
               int totalViews = friendData["totalViews"] ?? 0;
-              bool isPro = friendData["isPro"] ?? false; // isDiamond -> isPro
+              bool isPro = friendData["isPro"] ?? false;
               String rank = _calculateRank(totalViews, isPro);
 
               return Padding(
@@ -362,10 +362,25 @@ class _FriendsPageState extends State<FriendsPage> {
                         style: const TextStyle(color: Colors.black54),
                       ),
                       Text(
-                        "${AppLocalizations.of(context)!.messageSetting}: $messageSetting",
+                        "${AppLocalizations.of(context)!.messageSetting}: ${AppLocalizations.of(context)!.translate(messageSetting)}",
                         style: const TextStyle(fontSize: 14, color: Colors.black54),
                       ),
                     ],
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.message),
+                    onPressed: () async {
+                      // 메시지 설정에 따라 버튼 동작 제어
+                      if (messageSetting == 'messageBlocked') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(AppLocalizations.of(context)!.messageBlockedByUser)),
+                        );
+                        return;
+                      }
+                      // 친구 목록이므로 friendsOnly 조건은 이미 충족됨
+                      _logger.i("Navigating to chat with friend: $friendId");
+                      // Navigator.push(...);
+                    },
                   ),
                   onTap: () => _showFriendProfile(context, friendId, nickname, profileImages),
                 ),
@@ -397,7 +412,7 @@ class _FriendsPageState extends State<FriendsPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                    builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange),
                   ),
                 );
               },
@@ -422,7 +437,7 @@ class _FriendsPageState extends State<FriendsPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+            builder: (context) => FriendSearchPage(onLocaleChange: widget.onLocaleChange),
           ),
         );
       },
@@ -447,7 +462,7 @@ class _FriendsPageState extends State<FriendsPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => FriendRequestsPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                    builder: (context) => FriendRequestsPage(onLocaleChange: widget.onLocaleChange),
                   ),
                 );
               },
@@ -477,7 +492,7 @@ class _FriendsPageState extends State<FriendsPage> {
           receiverId: friendId,
           receiverName: friendName,
           receiverImages: profileImages,
-          onLocaleChange: widget.onLocaleChange, // onLocaleChange 전달
+          onLocaleChange: widget.onLocaleChange,
         ),
       ),
     );
@@ -559,6 +574,32 @@ class _FriendsPageState extends State<FriendsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(context)!.urlLaunchFailed}: $e')));
       }
+    }
+  }
+}
+
+// AppLocalizations 확장 메서드 추가
+extension AppLocalizationsExtension on AppLocalizations {
+  String translate(String key) {
+    switch (key) {
+      case "all":
+        return all;
+      case "dartlive":
+        return dartlive;
+      case "phoenix":
+        return phoenix;
+      case "granboard":
+        return granboard;
+      case "homeboard":
+        return homeboard;
+      case "all_allowed":
+        return all_allowed;
+      case "friendsOnly":
+        return friendsOnly;
+      case "messageBlocked":
+        return messageBlocked;
+      default:
+        return key;
     }
   }
 }

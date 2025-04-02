@@ -3,7 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:logger/logger.dart';
-import 'package:dartschat/generated/app_localizations.dart'; // 언어팩 임포트
+import 'package:dartschat/generated/app_localizations.dart';
 import '../services/firestore_service.dart';
 import 'chat_page.dart';
 import 'play_summary_page.dart';
@@ -15,7 +15,7 @@ class ProfileDetailPage extends StatefulWidget {
   final String nickname;
   final List<Map<String, dynamic>> profileImages;
   final bool isCurrentUser;
-  final void Function(Locale) onLocaleChange; // 언어 변경 콜백 추가
+  final void Function(Locale) onLocaleChange;
 
   const ProfileDetailPage({
     super.key,
@@ -23,7 +23,7 @@ class ProfileDetailPage extends StatefulWidget {
     required this.nickname,
     required this.profileImages,
     required this.isCurrentUser,
-    required this.onLocaleChange, // 필수 매개변수로 추가
+    required this.onLocaleChange,
   });
 
   @override
@@ -43,7 +43,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   String _homeShop = "없음";
   int totalViews = 0;
   int dailyViews = 0;
-  String messageSetting = "전체 허용";
+  String messageSetting = "all_allowed"; // 기본값 고정 키
   String? _errorMessage;
   String _rank = "💀";
   List<Map<String, dynamic>> _profileImages = [];
@@ -172,7 +172,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             _homeShop = userData["homeShop"] ?? AppLocalizations.of(context)!.none;
             totalViews = userData["totalViews"] ?? 0;
             dailyViews = userData["todayViews"] ?? 0;
-            messageSetting = userData["messageReceiveSetting"] ?? AppLocalizations.of(context)!.all_allowed;
+            messageSetting = userData["messageReceiveSetting"] ?? "all_allowed"; // 고정 키 사용
             _isPro = userData["isPro"] ?? false;
             _rank = _calculateRank(totalViews, _isPro);
             _profileImages = _firestoreService.sanitizeProfileImages(userData["profileImages"] ?? []);
@@ -418,7 +418,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           _buildInfoRow(Icons.store, AppLocalizations.of(context)!.homeShop, _homeShop),
           _buildInfoRow(Icons.star, AppLocalizations.of(context)!.rating, _rating > 0 ? "$_rating" : AppLocalizations.of(context)!.notRegistered),
           _buildInfoRow(Icons.sports_esports, AppLocalizations.of(context)!.dartBoard, _dartBoard),
-          _buildInfoRow(Icons.message, AppLocalizations.of(context)!.messageSetting, messageSetting),
+          _buildInfoRow(Icons.message, AppLocalizations.of(context)!.messageSetting, messageSetting), // 번역 없이 고정 키 표시
         ],
       ),
     );
@@ -484,7 +484,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PlaySummaryPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+                    builder: (context) => PlaySummaryPage(onLocaleChange: widget.onLocaleChange),
                   ),
                 );
               },

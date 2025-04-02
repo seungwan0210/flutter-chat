@@ -28,28 +28,28 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profile => 'プロフィール';
 
   @override
-  String get email => 'メール';
+  String get email => 'メールアドレス';
 
   @override
   String get password => 'パスワード';
 
   @override
-  String get signUp => '会員登録';
+  String get signUp => '新規登録';
 
   @override
-  String get userNotFound => 'メールが存在しません。';
+  String get userNotFound => 'メールアドレスが存在しません。';
 
   @override
   String get wrongPassword => 'パスワードが正しくありません。';
 
   @override
-  String get invalidEmail => 'メール形式が正しくありません。';
+  String get invalidEmail => 'メールアドレスの形式が正しくありません。';
 
   @override
   String get userDisabled => 'このアカウントは無効化されています。';
 
   @override
-  String get loginFailed => 'ログイン失敗';
+  String get loginFailed => 'ログインに失敗しました';
 
   @override
   String get chat => 'チャット';
@@ -70,22 +70,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get confirm => '確認';
 
   @override
-  String get logoutFailed => 'ログアウト失敗';
+  String get logoutFailed => 'ログアウトに失敗しました';
 
   @override
   String get error => 'エラー';
 
   @override
-  String get errorLoadingUserData => 'ユーザー情報のロード中にエラーが発生しました';
+  String get errorLoadingUserData => 'ユーザー情報の読み込み中にエラーが発生しました';
 
   @override
-  String get errorLoadingBlockedUsers => 'ブロックリストのロード中にエラーが発生しました';
+  String get errorLoadingBlockedUsers => 'ブロックリストの読み込み中にエラーが発生しました';
 
   @override
-  String get errorLoadingUserList => 'ユーザーリストのロード中にエラーが発生しました。';
+  String get errorLoadingUserList => 'ユーザー一覧の読み込み中にエラーが発生しました。';
 
   @override
-  String get errorLoadingStats => '統計情報のロード中にエラーが発生しました。';
+  String get errorLoadingStats => '統計情報の読み込み中にエラーが発生しました。';
 
   @override
   String get homeShop => 'ホームショップ';
@@ -127,13 +127,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeboard => 'ホームボード';
 
   @override
-  String get all_allowed => '全員';
+  String get all_allowed => 'すべてのユーザー';
 
   @override
   String get favorites => 'お気に入り';
 
   @override
-  String get noFriendsInThisStatus => '現在この状態の友達はいません。';
+  String get noFriendsInThisStatus => '現在、このステータスの友達はいません。';
 
   @override
   String get noFriendsAdded => 'まだ友達が追加されていません。';
@@ -142,7 +142,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get goAddFriends => '友達を追加しに行く';
 
   @override
-  String get loading => 'ロード中';
+  String get loading => '読み込み中';
 
   @override
   String get urlLaunchFailed => 'URLを開くのに失敗しました';
@@ -157,22 +157,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileSettings => 'プロフィール設定';
 
   @override
-  String get todayPlaySummary => '今日のプレイ概要';
+  String get todayPlaySummary => '今日のプレイサマリー';
 
   @override
-  String get sendMessage => 'メッセージを送る';
+  String get sendMessage => 'メッセージを送信';
 
   @override
-  String get cannotMessageDeactivated => '無効化されたアカウントにはメッセージを送れません。';
+  String get cannotMessageDeactivated => '無効化されたアカウントにはメッセージを送信できません。';
 
   @override
-  String get errorCheckingFriendStatus => '友達の状態確認中にエラーが発生しました';
+  String get errorCheckingFriendStatus => '友達ステータスの確認中にエラー';
 
   @override
-  String get errorIncreasingProfileViews => 'プロフィールの閲覧数を増やす際にエラーが発生しました';
+  String get errorIncreasingProfileViews => 'プロフィール閲覧数の増加中にエラー';
 
   @override
-  String get errorLoadingUserInfo => 'ユーザー情報をロード中にエラーが発生しました';
+  String get errorLoadingUserInfo => 'ユーザー情報の読み込み中にエラー';
 
   @override
   String get userInfoNotFound => 'ユーザー情報が見つかりません。';
@@ -199,7 +199,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addFriend => '友達を追加';
 
   @override
-  String get cannotAddDeactivated => '無効化されたアカウントは友達に追加できません。';
+  String get cannotAddDeactivated => '無効化されたアカウントは友達として追加できません。';
 
   @override
   String get block => 'ブロック';
@@ -217,10 +217,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get friendRemoved => '友達が削除されました。';
 
   @override
-  String get errorRemovingFriend => '友達の削除中にエラーが発生しました';
+  String get errorRemovingFriend => '友達の削除中にエラーが 발생しました';
 
   @override
-  String get errorLoadingBlockedStatus => 'ブロック状態のロード中にエラーが発生しました';
+  String get errorLoadingBlockedStatus => 'ブロックステータスの読み込み中にエラー';
 
   @override
   String get notRegistered => '未登録';
@@ -229,10 +229,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get friendInfo => '友達情報';
 
   @override
-  String get friendInfoNotFound => '友達情報をロードできません。';
+  String get friendInfoNotFound => '友達情報を読み込めません。';
 
   @override
-  String get errorLoadingFriendInfo => '友達情報のロード中にエラーが発生しました';
+  String get errorLoadingFriendInfo => '友達情報の読み込み中にエラー';
 
   @override
   String get cannotAddDeactivatedToFavorites => '無効化されたアカウントはお気に入りに追加できません。';
@@ -241,13 +241,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get errorTogglingFavorite => 'お気に入り設定に失敗しました';
 
   @override
-  String get confirmRemoveFriend => '友達を削除しますか？';
+  String get confirmRemoveFriend => 'この友達を削除しますか？';
 
   @override
   String get blockUser => 'ユーザーをブロック';
 
   @override
-  String get confirmBlockUser => 'ユーザーをブロックしますか？ブロックすると友達関係も解除されます。';
+  String get confirmBlockUser => 'このユーザーをブロックしますか？ブロックすると友達関係も解除됩니다。';
 
   @override
   String get errorBlockingFriend => '友達のブロックに失敗しました';
@@ -268,16 +268,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get enableOfflineMode => 'オフラインモードを有効化';
 
   @override
-  String get offlineModeDescription => 'オフラインモードを有効にすると、他のユーザーが私をオフライン状態で見ます。';
+  String get offlineModeDescription => 'オフラインモードを有効にすると、他のユーザーにオフラインとして表示されます。';
 
   @override
   String get settingsSaved => '設定が保存されました。';
 
   @override
-  String get errorLoadingOfflineMode => 'オフラインモード設定のロード中にエラーが発生しました';
+  String get errorLoadingOfflineMode => 'オフラインモード設定の読み込み中にエラー';
 
   @override
-  String get errorSavingOfflineMode => 'オフラインモード設定の保存中にエラーが発生しました';
+  String get errorSavingOfflineMode => 'オフラインモード設定の保存中にエラー';
 
   @override
   String get languageSettings => '言語設定';
@@ -286,16 +286,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get languageSettingsDescription => '言語を変更するとアプリ全体に適用されます。';
 
   @override
-  String get newUser => '新しいユーザー';
+  String get newUser => '新規ユーザー';
 
   @override
-  String get emailAlreadyInUse => '既に使用中のメールです。';
+  String get emailAlreadyInUse => 'このメールアドレスはすでに使用されています。';
 
   @override
   String get weakPassword => 'パスワードは6文字以上である必要があります。';
 
   @override
-  String get signUpFailed => '会員登録失敗';
+  String get signUpFailed => '新規登録に失敗しました';
 
   @override
   String get haveAccountLogin => 'すでにアカウントをお持ちですか？ログイン';
@@ -310,13 +310,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get userSearch => 'ユーザー検索';
 
   @override
-  String get searchHint => 'ニックネーム / ホームショップ検索';
+  String get searchHint => 'ニックネーム / ホームショップで検索';
 
   @override
   String get friendRequests => '友達リクエスト';
 
   @override
-  String get noFriendRequests => '受け取った友達リクエストはありません。友達を待ってみてください！';
+  String get noFriendRequests => '受け取った友達リクエストがありません。友達を待ってみましょう！';
 
   @override
   String get friendRequestAccepted => '友達リクエストを承認しました。';
@@ -331,34 +331,34 @@ class AppLocalizationsJa extends AppLocalizations {
   String get errorDecliningFriendRequest => '友達リクエストの拒否中にエラーが発生しました';
 
   @override
-  String get imageLoadError => '画像ロードエラー';
+  String get imageLoadError => '画像読み込みエラー';
 
   @override
-  String get errorLoadingFriendRequests => '友達リクエストリストのロード中にエラーが発生しました';
+  String get errorLoadingFriendRequests => '友達リクエスト一覧の読み込み中にエラーが発生しました';
 
   @override
-  String get cannotSendMessage => '相手がメッセージを受け取れません。';
+  String get cannotSendMessage => '相手がメッセージを受け取ることができません。';
 
   @override
-  String get friendsOnlyMessage => '友達のみメッセージを送れます。';
+  String get friendsOnlyMessage => 'このユーザーは友達からのメッセージのみを許可しています。';
 
   @override
   String get errorSendingMessage => 'メッセージ送信中にエラーが発生しました';
 
   @override
-  String get errorLoadingMessages => 'メッセージのロード中にエラーが発生しました';
+  String get errorLoadingMessages => 'メッセージの読み込み中にエラーが発生しました';
 
   @override
   String get noMessage => '[メッセージなし]';
 
   @override
-  String get searchMessages => '会話内容検索';
+  String get searchMessages => 'メッセージを検索';
 
   @override
-  String get enterMessage => 'メッセージ入力';
+  String get enterMessage => 'メッセージを入力';
 
   @override
-  String get messageBlocked => 'メッセージブロック';
+  String get messageBlocked => 'メッセージをブロック';
 
   @override
   String get friendsOnly => '友達のみ';
@@ -370,16 +370,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get pm => '午後';
 
   @override
-  String get errorSearching => '検索中にエラーが発生しました';
+  String get errorSearching => '検索中にエラーが 발생しました';
 
   @override
-  String get errorLoadingChatList => 'チャットリストのロード中にエラーが発生しました';
+  String get errorLoadingChatList => 'チャット一覧の読み込み中にエラーが発生しました';
 
   @override
   String get noChatRooms => 'チャットルームがありません';
 
   @override
-  String get startChat => '会話を開始';
+  String get startChat => 'チャットを始めましょう';
 
   @override
   String get searchNickname => 'ニックネーム検索';
@@ -391,49 +391,49 @@ class AppLocalizationsJa extends AppLocalizations {
   String get updateScheduled => 'アップデート予定';
 
   @override
-  String get comingSoon => '近日中のアップデートを予定しています。';
+  String get comingSoon => '近日中のアップデート予定です。';
 
   @override
   String get tournamentInfo => 'トーナメント情報';
 
   @override
-  String get summary => '概要';
+  String get summary => 'サマリー';
 
   @override
-  String get writePlaySummary => 'プレイ概要作成';
+  String get writePlaySummary => 'プレイサマリーを書く';
 
   @override
-  String get playStatusToday => '今日のプレイ状態';
+  String get playStatusToday => '今日のプレイステータス';
 
   @override
   String get playedBoard => 'プレイしたボード';
 
   @override
-  String get gamesPlayed => '試合数';
+  String get gamesPlayed => 'プレイしたゲーム数';
 
   @override
-  String get bestPerformance => '今日最も良かった点';
+  String get bestPerformance => '今日のベストパフォーマンス';
 
   @override
-  String get improvement => '今日改善すべき点';
+  String get improvement => '今日の改善点';
 
   @override
-  String get memo => '一行メモ';
+  String get memo => '一言メモ';
 
   @override
-  String get enterGamesPlayed => '試合数を入力してください！';
+  String get enterGamesPlayed => 'プレイしたゲーム数を入力してください！';
 
   @override
-  String get enterBestPerformance => '今日最も良かった点を入力してください！';
+  String get enterBestPerformance => '今日のベストパフォーマンスを入力してください！';
 
   @override
-  String get enterImprovement => '今日改善すべき点を入力してください！';
+  String get enterImprovement => '今日の改善点を入力してください！';
 
   @override
-  String get playSummarySaved => 'プレイ概要が保存されました！';
+  String get playSummarySaved => 'プレイサマリーが保存されました！';
 
   @override
-  String get saveFailed => '保存失敗';
+  String get saveFailed => '保存に失敗しました';
 
   @override
   String get excellent => '最上';
@@ -451,7 +451,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get poor => '最下';
 
   @override
-  String get status => '状態';
+  String get status => 'ステータス';
 
   @override
   String get edit => '編集';
@@ -460,7 +460,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get delete => '削除';
 
   @override
-  String get playSummaryDeleted => 'プレイ概要が削除されました。';
+  String get playSummaryDeleted => 'プレイサマリーが削除されました。';
 
   @override
   String get deleteFailed => '削除中にエラーが発生しました';
@@ -472,16 +472,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noData => 'データなし';
 
   @override
-  String get loadingDartsCircle => 'Darts Circle ロード中...';
+  String get loadingDartsCircle => 'Darts Circle 読み込み中...';
 
   @override
-  String get errorLoadingProfile => 'プロフィール情報のロード中にエラーが発生しました。';
+  String get errorLoadingProfile => 'プロフィール情報の読み込み中にエラーが 발생しました。';
+
+  @override
+  String get nickname => 'ニックネーム';
 
   @override
   String get blockManagement => 'ブロック管理';
 
   @override
-  String get noBlockedUsers => 'ブロックされたユーザーはいません。';
+  String get noBlockedUsers => 'ブロックされたユーザーがいません。';
 
   @override
   String get friendManagement => '友達管理';
@@ -490,13 +493,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get dartboardSettings => 'ダーツボード設定';
 
   @override
-  String get errorLoadingDartboard => 'ダーツボード設定のロード中にエラーが発生しました:';
+  String get errorLoadingDartboard => 'ダーツボード設定の読み込み中にエラーが 발생しました：';
 
   @override
-  String get noDartboardList => 'ダーツボードリストを取得できません。';
+  String get noDartboardList => 'ダーツボードリストを読み込めません。';
 
   @override
-  String get errorLoadingDartboardList => 'ダーツボードリストのロード中にエラーが発生しました:';
+  String get errorLoadingDartboardList => 'ダーツボードリストの読み込み中にエラーが 발생しました：';
 
   @override
   String get dartboardSaved => 'ダーツボードが変更されました。';
@@ -505,13 +508,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeShopSettings => 'ホームショップ変更';
 
   @override
-  String get errorLoadingHomeShop => 'ホームショップ情報のロード中にエラーが発生しました:';
+  String get errorLoadingHomeShop => 'ホームショップ情報の読み込み中にエラーが 발생しました：';
 
   @override
   String get enterHomeShop => 'ホームショップを入力してください！';
 
   @override
-  String get invalidHomeShopLength => 'ホームショップは2〜30文字で入力してください。';
+  String get invalidHomeShopLength => 'ホームショップは2～30文字で入力してください。';
 
   @override
   String get homeShopSaved => 'ホームショップが変更されました。';
@@ -523,7 +526,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messageSettings => 'メッセージ受信設定';
 
   @override
-  String get errorLoadingMessageSettings => 'メッセージ設定のロード中にエラーが発生しました:';
+  String get errorLoadingMessageSettings => 'メッセージ設定の読み込み中にエラーが発生しました：';
 
   @override
   String get messageSettingsSaved => 'メッセージ受信設定が変更されました。';
@@ -532,19 +535,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get nicknameSettings => 'ニックネーム変更';
 
   @override
-  String get errorLoadingNickname => 'ニックネームのロード中にエラーが発生しました:';
+  String get errorLoadingNickname => 'ニックネームの読み込み中にエラーが発生しました：';
 
   @override
-  String get enterNickname => 'ニックネームを入力してください！';
+  String get enterNickname => 'ニックネ임을入力してください！';
 
   @override
-  String get invalidNicknameFormat => 'ニックネームは2〜12文字で、漢字/英文字/数字/アンダースコア(_)のみ使用可能です。';
+  String get invalidNicknameFormat => 'ニックネームは2～12文字で、韓語/英語/数字/アンダースコア(_)のみ使用できます。';
 
   @override
-  String get nicknameTaken => '既に使用中のニックネームです。';
+  String get nicknameTaken => 'すでに使用中のニックネームです。';
 
   @override
-  String get errorCheckingNickname => 'ニックネームの重複確認中にエラーが発生しました:';
+  String get errorCheckingNickname => 'ニックネームの重複確認中にエラーが発生しました：';
 
   @override
   String get nicknameSaved => 'ニックネームが変更されました。';
@@ -556,49 +559,46 @@ class AppLocalizationsJa extends AppLocalizations {
   String get ratingSettings => 'レーティング設定';
 
   @override
-  String get errorLoadingRating => 'レーティング値のロード中にエラーが発生しました:';
+  String get errorLoadingRating => 'レーティング値の読み込み中にエラーが発生しました：';
 
   @override
-  String get errorLoadingMaxRating => '最大レーティング値のロード中にエラーが発生しました:';
+  String get errorLoadingMaxRating => '最大レーティング値の読み込み中にエラーが発生しました：';
 
   @override
   String get ratingSaved => 'レーティングが変更されました。';
 
   @override
-  String get nickname => 'nickname';
-
-  @override
   String get profileImageSettings => 'プロフィール画像変更';
 
   @override
-  String get errorLoadingProfileImages => 'プロフィール画像のロード中にエラーが発生しました:';
+  String get errorLoadingProfileImages => 'プロフィール画像の読み込み中にエラーが 발생しました：';
 
   @override
-  String get errorPickingImage => '画像選択中にエラーが発生しました:';
+  String get errorPickingImage => '画像選択中にエラーが発生しました：';
 
   @override
   String get imageUploaded => '画像がアップロードされました。';
 
   @override
-  String get errorUploadingImage => '画像アップロード中にエラーが発生しました:';
+  String get errorUploadingImage => '画像アップロード中にエラーが発生しました：';
 
   @override
   String get imageDeleted => '画像が削除されました。';
 
   @override
-  String get errorDeletingImage => '画像削除中にエラーが発生しました:';
+  String get errorDeletingImage => '画像削除中にエラーが発生しました：';
 
   @override
-  String get mainImageSet => '代表画像が設定されました。';
+  String get mainImageSet => 'メイン画像が設定されました。';
 
   @override
-  String get errorSettingMainImage => '代表画像設定中にエラーが発生しました:';
+  String get errorSettingMainImage => 'メイン画像設定中にエラーが発生しました：';
 
   @override
   String get defaultImageSet => 'デフォルト画像に設定されました。';
 
   @override
-  String get errorSettingDefaultImage => 'デフォルト画像設定中にエラーが発生しました:';
+  String get errorSettingDefaultImage => 'デフォルト画像設定中にエラーが発生しました：';
 
   @override
   String get noImagesUploaded => 'まだアップロードされた画像がありません。';
@@ -613,5 +613,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addImage => '画像追加';
 
   @override
-  String get allMessagesRead => '모든 메시지가 읽혔습니다.';
+  String get allMessagesRead => 'すべてのメッセージが読み込まれました。';
+
+  @override
+  String get blockedByUser => 'このユーザーにブロックされています。';
+
+  @override
+  String get messageBlockedByUser => 'このユーザーはメッセージをブロックしています。';
+
+  @override
+  String get settingUpdated => '設定が更新されました。';
 }

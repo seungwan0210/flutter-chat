@@ -178,7 +178,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get userInfoNotFound => '유저 정보를 찾을 수 없습니다。';
 
   @override
-  String get userBlocked => '사용자가 차단되었습니다。';
+  String get userBlocked => '사용자가 차단되었습니다.';
 
   @override
   String get blockReleased => '차단이 해제되었습니다。';
@@ -208,7 +208,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get unblock => '차단 해제';
 
   @override
-  String get friendRequestSent => '친구 요청을 보냈습니다。';
+  String get friendRequestSent => '친구 요청을 보냈습니다.';
 
   @override
   String get errorSendingFriendRequest => '친구 요청 중 오류가 발생했습니다';
@@ -289,7 +289,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get newUser => '새 유저';
 
   @override
-  String get emailAlreadyInUse => '이미 사용 중인 이메일입니다。';
+  String get emailAlreadyInUse => '이미 사용 중인 이메일입니다.';
 
   @override
   String get weakPassword => '비밀번호는 6자 이상이어야 합니다。';
@@ -319,7 +319,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noFriendRequests => '받은 친구 요청이 없습니다. 친구를 기다려보세요!';
 
   @override
-  String get friendRequestAccepted => '친구 요청을 승인했습니다。';
+  String get friendRequestAccepted => '친구 요청을 승인했습니다.';
 
   @override
   String get errorAcceptingFriendRequest => '친구 요청 승인 중 오류 발생';
@@ -340,7 +340,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get cannotSendMessage => '상대방이 메시지를 받을 수 없습니다。';
 
   @override
-  String get friendsOnlyMessage => '친구만 메시지를 보낼 수 있습니다。';
+  String get friendsOnlyMessage => '이 사용자는 친구에게만 메시지를 허용합니다.';
 
   @override
   String get errorSendingMessage => '메시지 전송 중 오류가 발생했습니다';
@@ -475,7 +475,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get loadingDartsCircle => 'Darts Circle 로딩 중...';
 
   @override
-  String get errorLoadingProfile => '프로필 정보를 불러오는 중 오류가 발생했습니다。';
+  String get errorLoadingProfile => '프로필 정보를 불러오는 중 오류가 발생했습니다.';
+
+  @override
+  String get nickname => '닉네임';
 
   @override
   String get blockManagement => '차단 관리';
@@ -493,7 +496,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorLoadingDartboard => '다트보드 설정을 불러오는 중 오류가 발생했습니다:';
 
   @override
-  String get noDartboardList => '다트보드 목록을 불러올 수 없습니다。';
+  String get noDartboardList => '다트보드 목록을 불러올 수 없습니다.';
 
   @override
   String get errorLoadingDartboardList => '다트보드 목록을 불러오는 중 오류가 발생했습니다:';
@@ -514,7 +517,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get invalidHomeShopLength => '홈샵은 2~30자 사이로 입력해주세요.';
 
   @override
-  String get homeShopSaved => '홈샵이 변경되었습니다。';
+  String get homeShopSaved => '홈샵이 변경되었습니다.';
 
   @override
   String get newHomeShop => '새 홈샵';
@@ -538,16 +541,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get enterNickname => '닉네임을 입력해주세요!';
 
   @override
-  String get invalidNicknameFormat => '닉네임은 2~12자, 한글/영문/숫자/밑줄(_)만 사용할 수 있습니다。';
+  String get invalidNicknameFormat => '닉네임은 2~12자, 한글/영문/숫자/밑줄(_)만 사용할 수 있습니다.';
 
   @override
-  String get nicknameTaken => '이미 사용 중인 닉네임입니다。';
+  String get nicknameTaken => '이미 사용 중인 닉네임입니다.';
 
   @override
   String get errorCheckingNickname => '닉네임 중복 확인 중 오류 발생:';
 
   @override
-  String get nicknameSaved => '닉네임이 변경되었습니다。';
+  String get nicknameSaved => '닉네임이 변경되었습니다.';
 
   @override
   String get newNickname => '새 닉네임';
@@ -563,9 +566,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get ratingSaved => '레이팅이 변경되었습니다.';
-
-  @override
-  String get nickname => '닉네임';
 
   @override
   String get profileImageSettings => '프로필 이미지 변경';
@@ -614,4 +614,13 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get allMessagesRead => '모든 메시지가 읽혔습니다.';
+
+  @override
+  String get blockedByUser => '이 사용자가 당신을 차단했습니다.';
+
+  @override
+  String get messageBlockedByUser => '이 사용자는 메시지를 차단했습니다.';
+
+  @override
+  String get settingUpdated => '설정이 업데이트되었습니다.';
 }

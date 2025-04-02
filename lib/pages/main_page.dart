@@ -8,11 +8,12 @@ import 'package:dartschat/pages/chat_list_page.dart';
 import 'package:dartschat/pages/profile_page.dart';
 import 'package:dartschat/pages/more_page.dart';
 import 'package:dartschat/pages/login_page.dart';
+import 'package:dartschat/services/firestore_service.dart';
 import 'package:logger/logger.dart';
 
 class MainPage extends StatefulWidget {
   final int initialIndex;
-  final void Function(Locale) onLocaleChange; // 필수로 유지
+  final void Function(Locale) onLocaleChange;
 
   const MainPage({super.key, this.initialIndex = 0, required this.onLocaleChange});
 
@@ -23,8 +24,8 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   late int _selectedIndex;
   final Logger _logger = Logger();
-
-  late List<Widget> _pages; // late로 선언하여 initState에서 초기화
+  final FirestoreService _firestoreService = FirestoreService();
+  late List<Widget> _pages;
 
   @override
   void initState() {
@@ -32,13 +33,12 @@ class _MainPageState extends State<MainPage> {
     _selectedIndex = widget.initialIndex;
     _logger.i("MainPage initialized with initialIndex: $_selectedIndex");
 
-    // _pages 리스트를 initState에서 초기화하여 onLocaleChange 전달
     _pages = [
-      HomePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
-      FriendsPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
-      ChatListPage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
-      ProfilePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
-      MorePage(onLocaleChange: widget.onLocaleChange), // onLocaleChange 전달
+      HomePage(onLocaleChange: widget.onLocaleChange),
+      FriendsPage(onLocaleChange: widget.onLocaleChange),
+      ChatListPage(onLocaleChange: widget.onLocaleChange),
+      ProfilePage(onLocaleChange: widget.onLocaleChange),
+      MorePage(onLocaleChange: widget.onLocaleChange),
     ];
 
     _checkAccountStatus();
@@ -57,9 +57,7 @@ class _MainPageState extends State<MainPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange,
-                ),
+                builder: (context) => LoginPage(onLocaleChange: widget.onLocaleChange),
               ),
             );
           }
@@ -79,9 +77,7 @@ class _MainPageState extends State<MainPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange,
-                ),
+                builder: (context) => LoginPage(onLocaleChange: widget.onLocaleChange),
               ),
             );
           }
@@ -95,9 +91,7 @@ class _MainPageState extends State<MainPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => LoginPage(
-                  onLocaleChange: widget.onLocaleChange,
-                ),
+                builder: (context) => LoginPage(onLocaleChange: widget.onLocaleChange),
               ),
             );
           }
@@ -118,9 +112,7 @@ class _MainPageState extends State<MainPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => LoginPage(
-              onLocaleChange: widget.onLocaleChange,
-            ),
+            builder: (context) => LoginPage(onLocaleChange: widget.onLocaleChange),
           ),
         );
       }
@@ -137,6 +129,8 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     _logger.i("Building MainPage with selectedIndex: $_selectedIndex");
+    String? userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
@@ -157,41 +151,113 @@ class _MainPageState extends State<MainPage> {
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          selectedItemColor: Theme.of(context).bottomNavigationBarTheme.selectedItemColor ?? Colors.amber[700],
-          unselectedItemColor: Theme.of(context).bottomNavigationBarTheme.unselectedItemColor ?? Colors.white,
-          type: BottomNavigationBarType.fixed,
-          showSelectedLabels: true,
-          showUnselectedLabels: false,
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.home, size: 28),
-              activeIcon: const Icon(Icons.home, size: 32),
-              label: AppLocalizations.of(context)!.home,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.group, size: 28),
-              activeIcon: const Icon(Icons.group, size: 32),
-              label: AppLocalizations.of(context)!.friends,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.chat, size: 28),
-              activeIcon: const Icon(Icons.chat, size: 32),
-              label: AppLocalizations.of(context)!.chat,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.person, size: 28),
-              activeIcon: const Icon(Icons.person, size: 32),
-              label: AppLocalizations.of(context)!.profile,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.more_horiz, size: 28),
-              activeIcon: const Icon(Icons.more_horiz, size: 32),
-              label: AppLocalizations.of(context)!.more,
-            ),
-          ],
+        child: StreamBuilder<int>(
+          stream: userId != null
+              ? FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: userId)
+              .snapshots()
+              .asyncMap((snapshot) => _firestoreService.getTotalUnreadCount(userId))
+              .distinct()
+              : Stream.value(0),
+          builder: (context, snapshot) {
+            int totalUnreadCount = snapshot.data ?? 0;
+            _logger.i("네비게이션 바 배지 업데이트: $totalUnreadCount개의 읽지 않은 메시지, userId: $userId");
+            return BottomNavigationBar(
+              currentIndex: _selectedIndex,
+              onTap: _onItemTapped,
+              selectedItemColor: Theme.of(context).bottomNavigationBarTheme.selectedItemColor ?? Colors.amber[700],
+              unselectedItemColor: Theme.of(context).bottomNavigationBarTheme.unselectedItemColor ?? Colors.white,
+              type: BottomNavigationBarType.fixed,
+              showSelectedLabels: true,
+              showUnselectedLabels: false,
+              items: [
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.home, size: 28),
+                  activeIcon: const Icon(Icons.home, size: 32),
+                  label: AppLocalizations.of(context)!.home,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.group, size: 28),
+                  activeIcon: const Icon(Icons.group, size: 32),
+                  label: AppLocalizations.of(context)!.friends,
+                ),
+                BottomNavigationBarItem(
+                  icon: Stack(
+                    children: [
+                      const Icon(Icons.chat, size: 28),
+                      if (totalUnreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$totalUnreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  activeIcon: Stack(
+                    children: [
+                      const Icon(Icons.chat, size: 32),
+                      if (totalUnreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$totalUnreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  label: AppLocalizations.of(context)!.chat,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.person, size: 28),
+                  activeIcon: const Icon(Icons.person, size: 32),
+                  label: AppLocalizations.of(context)!.profile,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.more_horiz, size: 28),
+                  activeIcon: const Icon(Icons.more_horiz, size: 32),
+                  label: AppLocalizations.of(context)!.more,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

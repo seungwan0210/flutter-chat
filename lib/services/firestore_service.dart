@@ -219,7 +219,33 @@ class FirestoreService {
   Future<void> sendMessage(String receiverId, String content) async {
     try {
       String senderId = _auth.currentUser!.uid;
-      String chatId = _generateChatId(senderId, receiverId);
+      String chatId = generateChatId(senderId, receiverId);
+
+      // 1. 차단 여부 확인
+      bool isBlocked = await isUserBlockedByReceiver(senderId, receiverId);
+      if (isBlocked) {
+        throw Exception("blockedByUser"); // 단순 문자열로 예외 던짐
+      }
+
+      // 2. 수신자의 메시지 설정 확인
+      DocumentSnapshot receiverDoc = await _firestore.collection("users").doc(receiverId).get();
+      if (!receiverDoc.exists) {
+        throw Exception("receiverNotFound");
+      }
+      var receiverData = receiverDoc.data() as Map<String, dynamic>;
+      String messageSetting = receiverData["messageSetting"] ?? "all";
+
+      if (messageSetting == "messageBlocked") {
+        throw Exception("messageBlockedByUser");
+      }
+
+      if (messageSetting == "friendsOnly") {
+        DocumentSnapshot senderDoc = await _firestore.collection("users").doc(receiverId).collection("friends").doc(senderId).get();
+        bool isFriend = senderDoc.exists;
+        if (!isFriend) {
+          throw Exception("friendsOnlyMessage");
+        }
+      }
 
       // 메시지 저장
       DocumentReference messageRef = _firestore.collection('chats').doc(chatId).collection('messages').doc();
@@ -231,27 +257,44 @@ class FirestoreService {
         'isRead': false,
       });
 
-      // 채팅방 정보 업데이트
+      // 채팅 정보 업데이트
       DocumentReference chatRef = _firestore.collection('chats').doc(chatId);
       await chatRef.set({
         'participants': [senderId, receiverId],
         'lastMessage': content,
         'lastMessageTime': FieldValue.serverTimestamp(),
         'unreadCount': {senderId: 0, receiverId: FieldValue.increment(1)},
+        'senderId': senderId,
       }, SetOptions(merge: true));
 
-      // 사용자별 unreadCount 업데이트
+      // unreadCount 가져오기
       DocumentSnapshot chatDoc = await chatRef.get();
       int unreadCount = (chatDoc.data() as Map<String, dynamic>?)?['unreadCount']?[receiverId] ?? 0;
 
-      // FCM 푸시 알림 전송 (클라이언트에서 간단히 처리, 실제로는 서버에서 해야 함)
-      await _sendPushNotification(receiverId, content, unreadCount);
+      // 발신자 정보 가져오기
+      DocumentSnapshot senderDoc = await _firestore.collection("users").doc(senderId).get();
+      String senderNickname = (senderDoc.data() as Map<String, dynamic>?)?['nickname'] ?? 'Unknown';
 
-      _logger.i("✅ 메시지 전송 완료: $chatId, unreadCount for $receiverId: $unreadCount");
+      // 푸시 알림만 호출
+      if (receiverId != senderId && unreadCount > 0) {
+        await _sendPushNotification(receiverId, content, unreadCount, senderId, senderNickname);
+      }
+
+      _logger.i("✅ 메시지 전송 완료: $chatId, $receiverId의 unreadCount: $unreadCount");
     } catch (e) {
       _logger.e("❌ 메시지 전송 중 오류 발생: $e");
-      throw Exception("메시지 전송 실패: $e");
+      throw Exception(e.toString());
     }
+  }
+
+  Future<bool> isUserBlockedByReceiver(String senderId, String receiverId) async {
+    DocumentSnapshot blockDoc = await _firestore
+        .collection("users")
+        .doc(receiverId)
+        .collection("blockedUsers")
+        .doc(senderId)
+        .get();
+    return blockDoc.exists;
   }
 
   Future<void> markMessagesAsRead(String chatId) async {
@@ -269,29 +312,12 @@ class FirestoreService {
         await doc.reference.update({'isRead': true});
       }
 
-      // unreadCount 초기화
       await _firestore.collection('chats').doc(chatId).update({
         'unreadCount.$userId': 0,
       });
 
-      // 총 unreadCount 계산 및 배지 업데이트
       int totalUnread = await _getTotalUnreadCount(userId);
-      await flutterLocalNotificationsPlugin.show(
-        0, // 알림 ID
-        null, // 읽음 처리 시 제목/내용 표시 생략
-        null,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            channel.id,
-            channel.name,
-            channelDescription: channel.description,
-            importance: Importance.max,
-            priority: Priority.high,
-            number: totalUnread, // 배지 수 설정
-          ),
-        ),
-      );
-      _logger.i("✅ 메시지 읽음 처리 완료: $chatId");
+      _logger.i("✅ 메시지 읽음 처리 완료: $chatId, 총 배지 수: $totalUnread");
     } catch (e) {
       _logger.e("❌ 메시지 읽음 처리 중 오류 발생: $e");
       throw Exception("메시지 읽음 처리 실패: $e");
@@ -315,22 +341,25 @@ class FirestoreService {
     }
   }
 
-  // 추가된 public 메서드
   Future<int> getTotalUnreadCount(String userId) async {
     return await _getTotalUnreadCount(userId);
   }
 
-  Future<void> _sendPushNotification(String receiverId, String messageContent, int unreadCount) async {
+  Future<void> _sendPushNotification(String receiverId, String messageContent, int unreadCount, String senderId, String senderNickname) async {
     try {
-      _logger.i("Sending push notification to $receiverId: '$messageContent', unreadCount: $unreadCount");
+      _logger.i("푸시 알림 전송 준비: receiverId: $receiverId, content: '$messageContent', unreadCount: $unreadCount, senderId: $senderId, senderNickname: $senderNickname");
     } catch (e) {
       _logger.e("❌ 푸시 알림 전송 중 오류 발생: $e");
     }
   }
 
-  String _generateChatId(String userId1, String userId2) {
+  String generateChatId(String userId1, String userId2) {
     List<String> ids = [userId1, userId2]..sort();
     return '${ids[0]}_${ids[1]}';
+  }
+
+  String _generateChatId(String userId1, String userId2) {
+    return generateChatId(userId1, userId2);
   }
 
   Stream<bool> listenToBlockedStatus(String userId) {
@@ -774,5 +803,32 @@ class FirestoreService {
       _logger.e("❌ Firestore에서 닉네임 중복 검사 중 오류 발생: $e");
       return false;
     }
+  }
+
+  Stream<List<Map<String, dynamic>>> getChatList() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        String chatId = doc.id;
+        List<String> participants = List<String>.from(data['participants']);
+        String otherUserId = participants.firstWhere((id) => id != userId);
+        int unreadCount = data['unreadCount']?[userId] ?? 0;
+
+        return {
+          'chatId': chatId,
+          'otherUserId': otherUserId,
+          'lastMessage': data['lastMessage'] ?? '',
+          'lastMessageTime': data['lastMessageTime'],
+          'unreadCount': unreadCount,
+        };
+      }).toList();
+    });
   }
 }
